@@ -4,7 +4,7 @@ name: Maya emulator smoke (no credentials)
 on:
   push:
     branches: [local-fixes]
-    paths: ['.github/workflows/maya-smoke.yml']
+    paths: ['.github/workflows/maya-smoke.yml', '.github/scripts/maya_smoke.sh']
 
 permissions:
   contents: read
