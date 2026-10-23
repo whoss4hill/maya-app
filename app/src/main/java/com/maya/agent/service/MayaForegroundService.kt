@@ -38,6 +38,13 @@ class MayaForegroundService : Service() {
     }
 
     private var wake: WakeWordEngine? = null
+    private var phoneLink: com.maya.agent.calls.PhoneLink? = null
+
+    private fun syncPhoneLink() {
+        val want = !paused && getSharedPreferences("maya_state", MODE_PRIVATE).getBoolean("phone_link_enabled", false)
+        if (want) { if (phoneLink == null) phoneLink = com.maya.agent.calls.PhoneLink(this); phoneLink?.start() }
+        else { phoneLink?.stop(); phoneLink = null }
+    }
 
     private fun wakeWordWanted() =
         !paused && getSharedPreferences("maya_state", MODE_PRIVATE).getBoolean("wakeword_enabled", false)
@@ -82,13 +89,13 @@ class MayaForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_PAUSE -> { paused = true; updateNotification(); syncWakeWord(); return START_STICKY }
-            ACTION_RESUME -> { paused = false; updateNotification(); syncWakeWord(); return START_STICKY }
+            ACTION_PAUSE -> { paused = true; updateNotification(); syncWakeWord(); syncPhoneLink(); return START_STICKY }
+            ACTION_RESUME -> { paused = false; updateNotification(); syncWakeWord(); syncPhoneLink(); return START_STICKY }
             ACTION_STOP -> { stopSelf(); return START_NOT_STICKY }
         }
         running = true
         startForegroundWithType()
-        if (running) syncWakeWord()
+        if (running) { syncWakeWord(); syncPhoneLink() }
         return START_STICKY
     }
 
@@ -141,6 +148,7 @@ class MayaForegroundService : Service() {
     override fun onDestroy() {
         running = false
         wake?.stop(); wake = null
+        phoneLink?.stop(); phoneLink = null
         super.onDestroy()
     }
 }
