@@ -1,0 +1,35 @@
+name: Backend keep-alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: maya-backend-keepalive
+  cancel-in-progress: false
+
+jobs:
+  health:
+    name: Check Maya backend health
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Require HTTP 200 from health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://maya-backend-z6e8.onrender.com/health'
+          if ! status=$(curl --silent --show-error \
+            --connect-timeout 15 --max-time 120 \
+            --output /dev/null --write-out '%{http_code}' "$endpoint"); then
+            echo '::error::Maya backend health request failed or timed out.'
+            exit 1
+          fi
+          if [[ "$status" != '200' ]]; then
+            echo "::error::Maya backend health returned HTTP $status (expected 200)."
+            exit 1
+          fi
+          echo 'Maya backend health returned HTTP 200.'
