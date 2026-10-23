@@ -42,7 +42,8 @@ class WakeWordEngine(
             try {
                 val rate = 16000
                 model = Model(VoskModelStore.modelDir(context).absolutePath)
-                rec = Recognizer(model, rate.toFloat())
+                // Grammar-limited: only "maya"/"hey" vs unknown, cheaper than free dictation.
+                rec = Recognizer(model, rate.toFloat(), "[\"maya\", \"maia\", \"hey\", \"[unk]\"]")
                 val min = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                 audio = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, rate,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, 8192))
@@ -69,7 +70,7 @@ class WakeWordEngine(
     fun stop() { running = false; thread?.join(1500); thread = null }
 
     companion object {
-        private val WORDS = listOf("maya", "maia", "mya", "maaya")
+        private val WORDS = listOf("maya", "maia")
         fun matches(text: String): Boolean {
             val t = text.lowercase()
             return WORDS.any { t.split(' ').contains(it) }
