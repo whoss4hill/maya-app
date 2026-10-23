@@ -64,7 +64,15 @@ class VoiceController(
                     }
                     override fun onError(error: Int) {
                         listeningNow = false; onListeningChanged(false)
-                        onError("Awaaz saaf nahi aayi - ek baar phir bolo")
+                        onError(
+                            when (error) {
+                                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Mic permission nahi mili - Settings mein allow karo"
+                                SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Internet nahi hai - speech recognition ke liye net chahiye"
+                                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Mic abhi busy hai - thodi der baad try karo"
+                                SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Kuch sunai nahi diya, phir bolo?"
+                                else -> "Awaaz saaf nahi aayi - ek baar phir bolo"
+                            }
+                        )
                     }
                     override fun onBeginningOfSpeech() {}
                     override fun onRmsChanged(rmsdB: Float) {}
@@ -79,6 +87,9 @@ class VoiceController(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            // Hinglish: allow English alongside Hindi (recognizer support varies by device).
+            putExtra(RecognizerIntent.EXTRA_SUPPORTED_LANGUAGES, arrayListOf("hi-IN", "en-IN"))
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
         }
         recognizer?.startListening(intent)
     }
