@@ -12,6 +12,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.maya.agent.MainActivity
 import com.maya.agent.R
+import com.maya.agent.voice.WakeWordEngine
 
 /**
  * Keeps Maya within reach: persistent notification, wake-word listener seam,
@@ -36,6 +37,39 @@ class MayaForegroundService : Service() {
             private set
     }
 
+    private var wake: WakeWordEngine? = null
+
+    private fun wakeWordWanted() =
+        !paused && getSharedPreferences("maya_state", MODE_PRIVATE).getBoolean("wakeword_enabled", false)
+
+    private fun syncWakeWord() {
+        if (wakeWordWanted()) {
+            if (wake == null) {
+                wake = WakeWordEngine(
+                    this,
+                    onWake = { notifyWake() },
+                    onFailure = { msg ->
+                        getSharedPreferences("maya_state", MODE_PRIVATE).edit().putBoolean("wakeword_enabled", false).apply()
+                        getSystemService(NotificationManager::class.java).notify(45,
+                            NotificationCompat.Builder(this, CHANNEL_ID).setSmallIcon(R.drawable.ic_launcher_foreground)
+                                .setContentTitle("Maya wake word band").setContentText(msg).build())
+                    },
+                )
+            }
+            wake?.start()
+        } else {
+            wake?.stop(); wake = null
+        }
+    }
+
+    private fun notifyWake() {
+        val open = PendingIntent.getActivity(this, 4, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        getSystemService(NotificationManager::class.java).notify(44,
+            NotificationCompat.Builder(this, CHANNEL_ID).setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("Maya").setContentText("Haan? Tap karke bolo")
+                .setContentIntent(open).setAutoCancel(true).setTimeoutAfter(15000).build())
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -48,13 +82,13 @@ class MayaForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_PAUSE -> { paused = true; updateNotification(); return START_STICKY }
-            ACTION_RESUME -> { paused = false; updateNotification(); return START_STICKY }
+            ACTION_PAUSE -> { paused = true; updateNotification(); syncWakeWord(); return START_STICKY }
+            ACTION_RESUME -> { paused = false; updateNotification(); syncWakeWord(); return START_STICKY }
             ACTION_STOP -> { stopSelf(); return START_NOT_STICKY }
         }
         running = true
         startForegroundWithType()
-        // TODO(seam): WakeWordEngine.start(context) when paused == false
+        if (running) syncWakeWord()
         return START_STICKY
     }
 
@@ -106,7 +140,7 @@ class MayaForegroundService : Service() {
 
     override fun onDestroy() {
         running = false
-        // TODO(seam): WakeWordEngine.stop()
+        wake?.stop(); wake = null
         super.onDestroy()
     }
 }
