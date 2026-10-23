@@ -1,0 +1,87 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['main', 'feature/**', 'build/**']
+  pull_request:
+    branches: ['main']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build installable preview APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      # Public anon key only. Never put a Supabase service-role or Gemini key here.
+      ORG_GRADLE_PROJECT_MAYA_SUPABASE_ANON_KEY: ${{ vars.MAYA_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify public app configuration
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          if [[ -z "$ORG_GRADLE_PROJECT_MAYA_SUPABASE_ANON_KEY" ]]; then
+            echo '::error::Set the repository Actions variable MAYA_SUPABASE_ANON_KEY to the Supabase public anon key. Do not use the service-role key.'
+            exit 1
+          fi
+
+      - name: Install required Android SDK packages
+        shell: bash
+        run: |
+          sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
+
+      - name: Build and check
+        shell: bash
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:lintDebug :app:testDebugUnitTest
+
+      - name: Verify APK signature and copy download
+        shell: bash
+        run: |
+          mkdir -p dist
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Maya-preview.apk
+          (cd dist && sha256sum Maya-preview.apk > Maya-preview.apk.sha256)
+
+      - name: Save APK download
+        id: apk
+        uses: actions/upload-artifact@v7
+        with:
+          name: Maya-preview-${{ github.run_number }}
+          path: |
+            dist/Maya-preview.apk
+            dist/Maya-preview.apk.sha256
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Add download instructions to build summary
+        env:
+          ARTIFACT_URL: ${{ steps.apk.outputs.artifact-url }}
+        shell: bash
+        run: |
+          {
+            echo '## Maya preview APK'
+            printf 'Download: %s\n\n' "$ARTIFACT_URL"
+            echo 'Download the artifact ZIP, extract Maya-preview.apk, then open the APK on Android 8.0 or later.'
+            echo 'GitHub sign-in and repository read access are required. Artifact expires after 3 days.'
+            echo 'Preview only: SDK debug signing is not a permanent release/update signing identity.'
+          } >> "$GITHUB_STEP_SUMMARY"
