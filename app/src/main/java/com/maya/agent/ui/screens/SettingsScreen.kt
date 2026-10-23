@@ -30,7 +30,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import android.Manifest
+import android.content.pm.PackageManager
 import com.maya.agent.MayaApp
+import com.maya.agent.voice.VoskModelStore
 import com.maya.agent.service.FloatingOrbService
 import com.maya.agent.service.MayaForegroundService
 import com.maya.agent.ui.components.GlassCard
@@ -53,6 +56,15 @@ fun SettingsScreen(
 
     var serviceOn by remember { mutableStateOf(prefs.getBoolean("service_enabled", false)) }
     var orbOn by remember { mutableStateOf(prefs.getBoolean("orb_enabled", false)) }
+    var wakeOn by remember { mutableStateOf(prefs.getBoolean("wakeword_enabled", false)) }
+    var showWakeConsent by remember { mutableStateOf(false) }
+    var wakeProgress by remember { mutableStateOf<Int?>(null) }
+    var wakeMessage by remember { mutableStateOf<String?>(null) }
+    val applyWake = { on: Boolean ->
+        wakeOn = on
+        prefs.edit().putBoolean("wakeword_enabled", on).apply()
+        if (serviceOn) ContextCompat.startForegroundService(context, Intent(context, MayaForegroundService::class.java))
+    }
     var confirmWipe by remember { mutableStateOf(false) }
 
     Column(
@@ -89,6 +101,60 @@ fun SettingsScreen(
                     colors = SwitchDefaults.colors(checkedTrackColor = Emerald),
                 )
             }
+        }
+
+        GlassCard {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("\"Maya\" bolke jagao (offline)", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Default OFF. Sirf upar wala Background switch ON ho tab sunti hai, notification mein Pause/Stop dikhta hai. Awaaz phone se bahar nahi jaati, save nahi hoti. Experimental: battery aur accuracy test baaki.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = wakeOn,
+                        enabled = wakeProgress == null,
+                        onCheckedChange = { on ->
+                            wakeMessage = null
+                            if (!on) applyWake(false)
+                            else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+                                wakeMessage = "Pehle Permission Manager se Microphone allow karo"
+                            else if (!serviceOn) wakeMessage = "Pehle \"Background mein Maya\" ON karo"
+                            else if (VoskModelStore.isInstalled(context)) applyWake(true)
+                            else showWakeConsent = true
+                        },
+                        colors = SwitchDefaults.colors(checkedTrackColor = Emerald),
+                    )
+                }
+                wakeProgress?.let { Text("Model download: $it%", color = Emerald) }
+                wakeMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                if (VoskModelStore.isInstalled(context) && wakeProgress == null) {
+                    TextButton(onClick = { applyWake(false); VoskModelStore.delete(context); wakeMessage = "Model hata diya" }) {
+                        Text("Downloaded model delete karo", color = Emerald)
+                    }
+                }
+            }
+        }
+        if (showWakeConsent) {
+            AlertDialog(
+                onDismissRequest = { showWakeConsent = false },
+                title = { Text("Offline model download?") },
+                text = { Text("Wake word ke liye ~${VoskModelStore.SIZE_MB} MB ka free open-source (Apache-2.0) speech model download hoga, alphacephei.com se. Mobile data lag sakta hai. Mic sirf tab sunega jab Background switch ON ho aur Pause nahi ho. Kabhi bhi OFF ya delete kar sakte ho.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showWakeConsent = false; wakeProgress = 0
+                        Thread {
+                            val err = VoskModelStore.download(context) { pct -> wakeProgress = pct }
+                            wakeProgress = null
+                            if (err == null) applyWake(true) else wakeMessage = err
+                        }.start()
+                    }) { Text("Download karo", color = Emerald) }
+                },
+                dismissButton = { TextButton(onClick = { showWakeConsent = false }) { Text("Nahi") } },
+            )
         }
 
         SectionLabel("Appearance")
