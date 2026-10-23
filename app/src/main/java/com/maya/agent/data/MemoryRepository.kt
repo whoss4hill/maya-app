@@ -21,7 +21,7 @@ class MemoryRepository(private val auth: AuthRepository) {
     }
 
     suspend fun chat(message: String): Reply = withContext(Dispatchers.IO) {
-        val token = auth.accessToken ?: return@withContext Reply.SignedOut
+        val token = auth.validAccessToken() ?: return@withContext Reply.SignedOut
         try {
             val res = api.chat("Bearer $token", ChatRequest(message))
             Reply.Ok(res.reply ?: "...")
@@ -33,17 +33,17 @@ class MemoryRepository(private val auth: AuthRepository) {
     }
 
     suspend fun memories(): List<MemoryDto> = withContext(Dispatchers.IO) {
-        val token = auth.accessToken ?: return@withContext emptyList()
+        val token = auth.validAccessToken() ?: return@withContext emptyList()
         try { api.memories("Bearer $token").memories } catch (e: Exception) { emptyList() }
     }
 
     suspend fun addMemory(kind: String, content: String) = withContext(Dispatchers.IO) {
-        val token = auth.accessToken ?: return@withContext
+        val token = auth.validAccessToken() ?: return@withContext
         try { api.addMemory("Bearer $token", MemoryCreate(kind, content)) } catch (_: Exception) {}
     }
 
     suspend fun deleteMemory(id: String) = withContext(Dispatchers.IO) {
-        val token = auth.accessToken ?: return@withContext
+        val token = auth.validAccessToken() ?: return@withContext
         try { api.deleteMemory("Bearer $token", id) } catch (_: Exception) {}
     }
 }
