@@ -47,6 +47,7 @@ import com.maya.agent.data.MemoryRepository
 import com.maya.agent.ui.components.StatusChip
 import com.maya.agent.ui.theme.Emerald
 import com.maya.agent.voice.VoiceController
+import com.maya.agent.calls.DialCommand
 import kotlinx.coroutines.launch
 
 /** Screen 06 - Chat with Maya. */
@@ -64,6 +65,13 @@ fun ChatScreen(initialText: String? = null) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() || thinking) return
         ChatStore.addUser(trimmed)
+        DialCommand.parse(trimmed)?.let { num ->
+            ChatStore.addMaya(
+                if (DialCommand.open(context, num)) "Dialer khol diya $num ke saath. Call tum khud dabaoge - main call nahi lagati."
+                else "Is phone par dialer app nahi mila."
+            )
+            return
+        }
         thinking = true
         scope.launch {
             when (val r = app.memories.chat(trimmed)) {
