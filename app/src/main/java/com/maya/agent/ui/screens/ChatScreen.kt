@@ -61,15 +61,66 @@ fun ChatScreen(initialText: String? = null) {
     var input by remember { mutableStateOf("") }
     var thinking by remember { mutableStateOf(false) }
 
+    var pendingCall by remember { mutableStateOf<DialCommand.Match?>(null) }
+    var pendingName by remember { mutableStateOf<String?>(null) }
+
+    fun placeNow(m: DialCommand.Match) {
+        ChatStore.addMaya(
+            if (DialCommand.call(context, m.number)) "${m.name} (${m.number}) ko call laga rahi hu."
+            else "Call nahi lag payi. Is phone par call app nahi mila ya permission refuse hui."
+        )
+    }
+
+    val callPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val m = pendingCall; pendingCall = null
+        if (m == null) return@rememberLauncherForActivityResult
+        if (granted) placeNow(m)
+        else ChatStore.addMaya("Call ki permission nahi mili, isliye call nahi lagayi. Chaho toh settings mein Phone permission de do.")
+    }
+
+    fun requestCall(m: DialCommand.Match) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) placeNow(m)
+        else { pendingCall = m; callPermLauncher.launch(Manifest.permission.CALL_PHONE) }
+    }
+
+    fun resolveName(name: String) {
+        val found = DialCommand.lookup(context, name)
+        when {
+            found.isEmpty() -> ChatStore.addMaya("\"$name\" naam ka contact nahi mila. Number bolo, jaise: call 98XXXXXXXX.")
+            found.size == 1 -> requestCall(found[0])
+            else -> ChatStore.addMaya(
+                "\"$name\" ke kai numbers mile, kisko call karu? Pura number likho:\n" +
+                    found.joinToString("\n") { "${it.name}: ${it.number}" }
+            )
+        }
+    }
+
+    val contactsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val n = pendingName; pendingName = null
+        if (n == null) return@rememberLauncherForActivityResult
+        if (granted) resolveName(n)
+        else ChatStore.addMaya("Contacts ki permission nahi hai, naam se call nahi laga sakti. Number likho.")
+    }
+
+    fun handleCall(req: DialCommand.Request) {
+        when (req) {
+            is DialCommand.Request.Number -> requestCall(DialCommand.Match(req.number, req.number))
+            is DialCommand.Request.Name ->
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) resolveName(req.name)
+                else { pendingName = req.name; contactsLauncher.launch(Manifest.permission.READ_CONTACTS) }
+        }
+    }
+
     fun send(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() || thinking) return
         ChatStore.addUser(trimmed)
-        DialCommand.parse(trimmed)?.let { num ->
-            ChatStore.addMaya(
-                if (DialCommand.open(context, num)) "Dialer khol diya $num ke saath. Call tum khud dabaoge - main call nahi lagati."
-                else "Is phone par dialer app nahi mila."
-            )
+        DialCommand.request(trimmed)?.let { req ->
+            handleCall(req)
             return
         }
         thinking = true
