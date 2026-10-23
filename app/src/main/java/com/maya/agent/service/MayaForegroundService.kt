@@ -60,17 +60,17 @@ class MayaForegroundService : Service() {
 
     private fun startForegroundWithType() {
         val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= 34) {
-            // Mic type is declared; the mic itself only opens on an explicit
-            // owner summon or wake-word hit.
-            try {
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
                 startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
-            } catch (e: SecurityException) {
-                // Mic permission not granted yet - run without the mic type.
+            } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            // Android refused a microphone foreground service (no mic permission, or
+            // not started from a visible app). Stop cleanly instead of crashing.
+            running = false
+            stopSelf()
         }
     }
 
