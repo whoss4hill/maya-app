@@ -46,8 +46,14 @@ jobs:
       - name: Install required Android SDK packages
         shell: bash
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
+          SM="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          ls "${ANDROID_HOME:-$ANDROID_SDK_ROOT}" "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/platforms" "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" 2>&1 | head -20
+          if [ -x "$SM" ]; then
+            yes | "$SM" --licenses > /dev/null || true
+            "$SM" 'platforms;android-34' 'build-tools;34.0.0'
+          else
+            echo "sdkmanager not found at $SM; relying on preinstalled SDK"
+          fi
 
       - name: Build and check
         shell: bash
