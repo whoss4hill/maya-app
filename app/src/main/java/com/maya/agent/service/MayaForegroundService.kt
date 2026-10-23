@@ -28,6 +28,7 @@ class MayaForegroundService : Service() {
         const val CHANNEL_ID = "maya_background"
         const val NOTIFICATION_ID = 42
         const val ACTION_PAUSE = "com.maya.agent.action.PAUSE"
+        const val ACTION_RESUME = "com.maya.agent.action.RESUME"
         const val ACTION_STOP = "com.maya.agent.action.STOP"
         var running = false
             private set
@@ -48,6 +49,7 @@ class MayaForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_PAUSE -> { paused = true; updateNotification(); return START_STICKY }
+            ACTION_RESUME -> { paused = false; updateNotification(); return START_STICKY }
             ACTION_STOP -> { stopSelf(); return START_NOT_STICKY }
         }
         running = true
@@ -78,8 +80,8 @@ class MayaForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE,
         )
         val pauseIntent = PendingIntent.getService(
-            this, 1, Intent(this, MayaForegroundService::class.java).setAction(ACTION_PAUSE),
-            PendingIntent.FLAG_IMMUTABLE,
+            this, 1, Intent(this, MayaForegroundService::class.java).setAction(if (paused) ACTION_RESUME else ACTION_PAUSE),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val stopIntent = PendingIntent.getService(
             this, 2, Intent(this, MayaForegroundService::class.java).setAction(ACTION_STOP),
