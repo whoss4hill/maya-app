@@ -31,6 +31,7 @@ android {
         versionName = "0.1.0"
 
         // MAYA_SUPABASE_ANON_KEY: public anon key only - NEVER the service-role key.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") } // phones only; drops x86 Vosk/JNA libs
         buildConfigField("String", "BACKEND_URL", "\"${config("MAYA_BACKEND_URL")}\"")
         buildConfigField("String", "SUPABASE_URL", "\"${config("MAYA_SUPABASE_URL")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${config("MAYA_SUPABASE_ANON_KEY")}\"")
