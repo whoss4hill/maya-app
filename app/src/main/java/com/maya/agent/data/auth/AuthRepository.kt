@@ -84,6 +84,7 @@ class AuthRepository(context: Context) {
                         .putString("access_token", token)
                         .putString("refresh_token", json.get("refresh_token")?.asString)
                         .putString("email", email)
+                        .putLong("expires_at", refresher.expiryFrom(json.get("expires_at")?.asLong, json.get("expires_in")?.asLong))
                         .apply()
                     Result.Success
                 }
@@ -111,8 +112,24 @@ class AuthRepository(context: Context) {
         prefs.edit()
             .putString("access_token", token)
             .putString("refresh_token", params["refresh_token"])
+            .putLong("expires_at", refresher.expiryFrom(params["expires_at"]?.toLongOrNull(), params["expires_in"]?.toLongOrNull()))
             .apply()
     }
+
+    private val store = object : TokenStore {
+        override fun accessToken() = prefs.getString("access_token", null)
+        override fun refreshToken() = prefs.getString("refresh_token", null)
+        override fun expiresAt() = prefs.getLong("expires_at", 0L)
+        override fun save(access: String, refresh: String?, expiresAt: Long) {
+            prefs.edit().putString("access_token", access).putString("refresh_token", refresh)
+                .putLong("expires_at", expiresAt).apply()
+        }
+        override fun clear() = prefs.edit().clear().apply()
+    }
+    private val refresher by lazy { TokenRefresher(http, BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY, store) }
+
+    /** Access token valid for the next minute, refreshed when needed (see TokenRefresher). */
+    suspend fun validAccessToken(): String? = withContext(Dispatchers.IO) { refresher.validAccessToken() }
 
     fun signOut() = prefs.edit().clear().apply()
 }
