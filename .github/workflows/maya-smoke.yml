@@ -1,0 +1,56 @@
+name: Maya emulator smoke (no credentials)
+
+# Runs once when this file is pushed to local-fixes (path filter), never on other pushes.
+on:
+  push:
+    branches: [local-fixes]
+    paths: ['.github/workflows/maya-smoke.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Build debug APK (placeholder public config, no login possible)
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :app:assembleDebug :app:testDebugUnitTest \
+            -PMAYA_SUPABASE_URL=https://example.supabase.co \
+            -PMAYA_BACKEND_URL=https://example.invalid \
+            -PMAYA_SUPABASE_ANON_KEY=eyJplaceholder
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Emulator smoke (Android 14 / API 34)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          disable-animations: true
+          script: bash .github/scripts/maya_smoke.sh
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maya-smoke
+          path: |
+            smoke-*.png
+            smoke-log.txt
+            logcat.txt
