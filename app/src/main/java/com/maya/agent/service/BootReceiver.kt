@@ -34,7 +34,7 @@ class BootReceiver : BroadcastReceiver() {
                     NotificationCompat.Builder(context, MayaForegroundService.CHANNEL_ID)
                         .setSmallIcon(R.drawable.ic_launcher_foreground)
                         .setContentTitle("Maya")
-                        .setContentText("Phone restart hua - Maya shuru karne ke liye tap karo")
+                        .setContentText("Phone restarted. Tap to start Maya")
                         .setContentIntent(open)
                         .setAutoCancel(true)
                         .build()
