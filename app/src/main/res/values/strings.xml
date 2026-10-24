@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">Maya</string>
     <string name="notification_channel_maya">Maya background</string>
-    <string name="notification_maya_running">Maya yahin hai - "Hey Maya" bolo</string>
+    <string name="notification_maya_running">Maya is running in the background</string>
 </resources>
