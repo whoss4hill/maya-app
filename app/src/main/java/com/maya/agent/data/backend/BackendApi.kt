@@ -48,6 +48,18 @@ data class ToggleRequest(val on: Boolean)
 
 data class HealthResponse(val ok: Boolean, val service: String?, val time: String?)
 
+// Live voice (Free talk): ephemeral-token mint. Server locks uses:1, 30-min
+// expiry, model, AUDIO modality, sessionResumption; 1-min connect window.
+// Token values are never logged (HEADERS-only debug logging, no body logging).
+data class LiveTokenRequest(val unused: String? = null)
+data class LiveTokenResponse(
+    val token: String?,
+    val expire_time: String?,
+    val model: String?,
+    val ws_url: String?,
+    val note: String?,
+)
+
 interface BackendApi {
     @GET("/health")
     suspend fun health(): HealthResponse
@@ -101,6 +113,12 @@ interface BackendApi {
 
     @GET("/v1/tasks")
     suspend fun tasks(@Header("Authorization") bearer: String): TasksResponse
+
+    @POST("/v1/live/token")
+    suspend fun liveToken(
+        @Header("Authorization") bearer: String,
+        @Body body: LiveTokenRequest = LiveTokenRequest(),
+    ): LiveTokenResponse
 }
 
 object BackendClient {
