@@ -16,7 +16,9 @@ import java.util.concurrent.TimeUnit
 // ---- DTOs matching the live backend (maya-backend on Render) ----
 
 data class ChatRequest(val message: String)
-data class ChatResponse(val reply: String?)
+data class ChatResponse(val reply: String?, val image_prompt: String? = null)
+data class ImageRequest(val prompt: String)
+data class ImageResponse(val image_base64: String?, val mime: String?, val model: String?)
 
 data class MemoryDto(
     val id: String,
@@ -55,6 +57,20 @@ interface BackendApi {
         @Header("Authorization") bearer: String,
         @Body body: ChatRequest,
     ): ChatResponse
+
+    /** Opt-in media hint: send "1" and the backend may add image_prompt for an image request. Not sent by the shipped chat path. */
+    @POST("/v1/chat")
+    suspend fun chatWithMedia(
+        @Header("Authorization") bearer: String,
+        @Header("X-Maya-Media") media: String,
+        @Body body: ChatRequest,
+    ): ChatResponse
+
+    @POST("/v1/image")
+    suspend fun image(
+        @Header("Authorization") bearer: String,
+        @Body body: ImageRequest,
+    ): ImageResponse
 
     @GET("/v1/memories")
     suspend fun memories(@Header("Authorization") bearer: String): MemoriesResponse
