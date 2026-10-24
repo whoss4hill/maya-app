@@ -34,10 +34,10 @@ class DefaultAssistantRegistrationTest {
         val vis = services.firstOrNull { it.serviceInfo.name == "com.maya.agent.service.MayaVoiceInteractionService" }
         assertTrue("MayaVoiceInteractionService must be registered", vis != null)
         assertTrue("must be protected by the system bind permission",
-            vis!!.serviceInfo.permission == "android.permission.BIND_VOICE_INTERACTION_SERVICE")
+            vis!!.serviceInfo.permission == "android.permission.BIND_VOICE_INTERACTION")
         val meta = vis.serviceInfo.metaData
-        assertTrue("voice_interaction_service metadata must be present",
-            meta != null && meta.containsKey("android.voice_interaction_service"))
+        assertTrue("android.voice_interaction metadata must be present (framework constant VoiceInteractionService.SERVICE_META_DATA)",
+            meta != null && meta.containsKey("android.voice_interaction"))
     }
 
     @Test

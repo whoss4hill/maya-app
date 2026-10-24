@@ -91,18 +91,18 @@
         <service
             android:name=".service.MayaVoiceInteractionService"
             android:exported="true"
-            android:permission="android.permission.BIND_VOICE_INTERACTION_SERVICE">
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
             <intent-filter>
                 <action android:name="android.service.voice.VoiceInteractionService" />
             </intent-filter>
             <meta-data
-                android:name="android.voice_interaction_service"
+                android:name="android.voice_interaction"
                 android:resource="@xml/voice_interaction_service" />
         </service>
         <service
             android:name=".service.MayaVoiceInteractionSessionService"
             android:exported="false"
-            android:permission="android.permission.BIND_VOICE_INTERACTION_SERVICE" />
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
         <service
             android:name=".service.MayaRecognitionService"
             android:exported="true"
