@@ -238,7 +238,14 @@ say "page_render_pass=done"
 # the role can actually be held, and the system binds our service (CI fixture
 # only - on a real phone the owner picks it in system UI themselves).
 say "== assistant role verification =="
-adb shell pm query-intent-services android.service.voice.VoiceInteractionService 2>&1 | grep -a 'com.maya' | tee -a $L
+VISQ=$(adb shell pm query-intent-services -a android.service.voice.VoiceInteractionService 2>&1 | tr -d '\r')
+echo "$VISQ" | grep -a 'com.maya' | tee -a $L
+if echo "$VISQ" | grep -q "$P"; then
+  say "vis_intent_visible=YES - system resolves Maya VoiceInteractionService"
+else
+  say "vis_intent_visible=NO - system does not resolve Maya VIS for the VIS intent"
+  adb shell dumpsys package $P 2>/dev/null | grep -a -A6 'MayaVoiceInteractionService' | head -12 | tee -a $L
+fi
 # cmd role exits 0 even when the grant fails - verify via get-role-holders.
 adb shell cmd role add-role-holder android.app.role.ASSISTANT $P >/dev/null 2>&1
 HOLDERS=$(adb shell cmd role get-role-holders android.app.role.ASSISTANT 2>&1 | tr -d '\r')
