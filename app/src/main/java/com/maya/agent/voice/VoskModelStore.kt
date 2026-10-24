@@ -48,7 +48,7 @@ object VoskModelStore {
                 }
             }
             val hex = md.digest().joinToString("") { "%02x".format(it) }
-            if (hex != SHA256) return "Download verify nahi hua (checksum alag)"
+            if (hex != SHA256) return "Download could not be verified (checksum mismatch)"
             val target = modelDir(context)
             target.deleteRecursively(); target.mkdirs()
             ZipInputStream(tmp.inputStream()).use { zin ->
@@ -64,7 +64,7 @@ object VoskModelStore {
                     }
                 }
             }
-            return if (isInstalled(context)) null else "Model unpack adhura raha"
+            return if (isInstalled(context)) null else "Model unpack did not finish"
         } catch (e: Exception) {
             return "Download fail: ${e.javaClass.simpleName}"
         } finally {
