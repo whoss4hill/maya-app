@@ -72,15 +72,15 @@ fun VaultScreen() {
         ) {
             Icon(Icons.Filled.Lock, contentDescription = null, tint = Emerald)
             Spacer(Modifier.height(16.dp))
-            Text("Tijori band hai", style = MaterialTheme.typography.displaySmall)
+            Text("Vault is locked", style = MaterialTheme.typography.displaySmall)
             Spacer(Modifier.height(8.dp))
             Text(
-                "Secrets encrypted hain, sirf tumhare biometric ya PIN se khulte hain.",
+                "Secrets are encrypted on this device and open only with your biometric or PIN.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(24.dp))
-            MayaPrimaryButton(text = "Unlock karo", onClick = {
+            MayaPrimaryButton(text = "Unlock", onClick = {
                 if (activity != null && BiometricGate.canAuthenticate(activity)) {
                     BiometricGate.authenticate(activity, onUnlocked = { unlocked = true; refresh() })
                 } else {
@@ -98,7 +98,7 @@ fun VaultScreen() {
 
     Column(Modifier.fillMaxSize().padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Tijori (Vault)", style = MaterialTheme.typography.headlineMedium)
+            Text("Vault", style = MaterialTheme.typography.headlineMedium)
             OutlinedButton(onClick = { unlocked = false }) {
                 Icon(Icons.Filled.Lock, null, tint = Emerald)
                 Spacer(Modifier.padding(2.dp))
@@ -123,10 +123,10 @@ fun VaultScreen() {
             if (shown.isEmpty()) {
                 item {
                     GlassCard {
-                        Text("Tijori khaali hai", style = MaterialTheme.typography.titleMedium)
+                        Text("Vault is empty", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Passwords, cards, keys - sab encrypted, sirf is phone par. Chat me kabhi nahi maangungi.",
+                            "Passwords, cards, keys - encrypted and stored only on this phone. Keep secrets here, not in chat.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -166,7 +166,7 @@ fun VaultScreen() {
                     val log = app.vault.auditLog().takeLast(10).reversed()
                     GlassCard {
                         if (log.isEmpty()) {
-                            Text("Abhi koi activity nahi.", style = MaterialTheme.typography.bodyMedium)
+                            Text("No activity yet.", style = MaterialTheme.typography.bodyMedium)
                         }
                         log.forEach { e ->
                             Text(
