@@ -120,3 +120,11 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
+
+// UI interaction tests (Robolectric + Compose test). Test-only; nothing here ships in the APK.
+android { testOptions { unitTests { isIncludeAndroidResources = true } } }
+dependencies {
+    testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
