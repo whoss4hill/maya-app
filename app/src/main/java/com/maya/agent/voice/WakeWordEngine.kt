@@ -31,9 +31,9 @@ class WakeWordEngine(
     fun start() {
         if (running) return
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            onFailure("Mic permission nahi hai"); return
+            onFailure("Mic permission not granted"); return
         }
-        if (!VoskModelStore.isInstalled(context)) { onFailure("Wake word model download nahi hua"); return }
+        if (!VoskModelStore.isInstalled(context)) { onFailure("Wake word model is not downloaded"); return }
         running = true
         thread = Thread({
             var model: Model? = null
@@ -47,7 +47,7 @@ class WakeWordEngine(
                 val min = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
                 audio = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, rate,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, 8192))
-                if (audio.state != AudioRecord.STATE_INITIALIZED) { onFailure("Mic open nahi hua"); return@Thread }
+                if (audio.state != AudioRecord.STATE_INITIALIZED) { onFailure("Could not open the mic"); return@Thread }
                 audio.startRecording()
                 val buf = ByteArray(4096)
                 while (running) {
@@ -58,7 +58,7 @@ class WakeWordEngine(
                     if (matches(hit)) { rec.reset(); onWake() }
                 }
             } catch (e: Throwable) {
-                onFailure("Wake word band: ${e.javaClass.simpleName}")
+                onFailure("Wake word stopped: ${e.javaClass.simpleName}")
             } finally {
                 try { audio?.stop() } catch (_: Exception) {}
                 audio?.release(); rec?.close(); model?.close()
