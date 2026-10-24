@@ -17,9 +17,11 @@ import java.util.Locale
  */
 class VoiceController(
     context: Context,
-    private val onListeningChanged: (Boolean) -> Unit = {},
-    private val onResult: (String) -> Unit = {},
-    private val onError: (String) -> Unit = {},
+    // Settable: the Chat screen wires its own handlers while visible and
+    // restores no-ops on dispose, so a stale screen can never receive a turn.
+    var onListeningChanged: (Boolean) -> Unit = {},
+    var onResult: (String) -> Unit = {},
+    var onError: (String) -> Unit = {},
 ) {
     private val appContext = context.applicationContext
     private var recognizer: SpeechRecognizer? = null
@@ -45,6 +47,7 @@ class VoiceController(
     private var listeningNow = false
 
     fun startListening() {
+        if (listeningNow) return // one turn at a time; a re-start would busy-error the recognizer
         if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
             onError("Speech recognition is not available on this phone")
             return

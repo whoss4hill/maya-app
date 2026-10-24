@@ -146,7 +146,18 @@ fun ChatScreen(initialText: String? = null) {
         if (ChatStore.messages.isNotEmpty()) listState.animateScrollToItem(ChatStore.messages.lastIndex)
     }
 
-    DisposableEffect(Unit) { onDispose { } }
+    // In-app mic: the final transcript goes through the exact same send() path as
+    // typed text (call commands, chat, sign-in notice). Handlers are unwired on
+    // dispose so a stale screen can never receive a late recognition result.
+    DisposableEffect(Unit) {
+        app.voice.onResult = { text -> send(text) }
+        app.voice.onError = { msg -> ChatStore.addMaya(msg) }
+        onDispose {
+            app.voice.onResult = {}
+            app.voice.onError = {}
+            app.voice.stopListening()
+        }
+    }
 
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -240,11 +251,15 @@ fun ChatScreen(initialText: String? = null) {
             FilledIconButton(
                 onClick = {
                     if (input.isBlank()) {
-                        val granted = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.RECORD_AUDIO
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) app.voice.startListening()
-                        else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        if (app.voice.isListening) {
+                            app.voice.stopListening()
+                        } else {
+                            val granted = ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (granted) app.voice.startListening()
+                            else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
                     } else {
                         send(input); input = ""
                     }
