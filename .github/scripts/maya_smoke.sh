@@ -193,17 +193,14 @@ tap_on "Home" || say "note: Home tab not found"
 sleep 2
 tap_on "Type or speak..." || say "note: home input not found"
 sleep 2
-adb shell input tap 540 1215   # belt-and-braces focus on the input bar itself
-sleep 1
+# No extra taps here: any tap outside the field drops its focus.
 adb shell input text 'kal%20sabhaar%20kitne%20baje%20hai'
 sleep 2
 adb shell uiautomator dump /sdcard/maya-ui.xml >/dev/null 2>&1
 if adb exec-out cat /sdcard/maya-ui.xml 2>/dev/null | grep -q 'kal sabhaar kitne baje hai'; then
   say "seeded_text_present=yes"
 else
-  say "seeded_text_present=NO (first try) - retype once"
-  adb shell input tap 540 1215
-  sleep 1
+  say "seeded_text_present=NO - retype once"
   adb shell input text 'kal%20sabhaar%20kitne%20baje%20hai'
   sleep 2
   adb shell uiautomator dump /sdcard/maya-ui.xml >/dev/null 2>&1
