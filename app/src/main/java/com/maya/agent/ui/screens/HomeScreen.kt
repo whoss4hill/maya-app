@@ -143,13 +143,13 @@ fun HomeScreen(onNavigateToChat: (String) -> Unit) {
             OutlinedButton(onClick = { onNavigateToChat("Ek reminder laga do") }) {
                 Icon(Icons.Filled.Alarm, null, tint = Emerald)
                 Spacer(Modifier.width(6.dp))
-                Text("Ek reminder")
+                Text("Set reminder")
             }
             Spacer(Modifier.width(12.dp))
             OutlinedButton(onClick = { onNavigateToChat("Kuch dhoondo") }) {
                 Icon(Icons.Filled.Search, null, tint = Emerald)
                 Spacer(Modifier.width(6.dp))
-                Text("Kuch dhoondo")
+                Text("Search")
             }
         }
         lastReply?.let {
