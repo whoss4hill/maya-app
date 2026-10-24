@@ -26,7 +26,7 @@ import com.maya.agent.ui.components.StatusChip
 import com.maya.agent.ui.components.VoiceOrb
 import com.maya.agent.ui.theme.Emerald
 
-/** Screen 01 - Welcome ("Main Maya. Tum bolo, main karti hu.") */
+/** Screen 01 - Welcome ("I am Maya. You say it, I do it.") */
 @Composable
 fun WelcomeScreen(onStart: () -> Unit) {
     Column(
@@ -45,7 +45,7 @@ fun WelcomeScreen(onStart: () -> Unit) {
         Spacer(Modifier.height(40.dp))
         VoiceOrb(mood = OrbMood.IDLE, size = 200.dp)
         Spacer(Modifier.height(32.dp))
-        Text("Main Maya.", style = MaterialTheme.typography.displaySmall)
+        Text("I'm Maya.", style = MaterialTheme.typography.displaySmall)
         Text(
             "You say it, I do it.",
             style = MaterialTheme.typography.headlineMedium,
