@@ -29,6 +29,8 @@ object LiveToolBridge {
        "parameters":{"type":"OBJECT","properties":{"query":{"type":"STRING"}},"required":["query"]}},
       {"name":"read_screen","description":"Read the visible text of the current screen (needs the accessibility service)",
        "parameters":{"type":"OBJECT","properties":{}}},
+      {"name":"tap_text","description":"Tap a visible text/button on the current screen (needs the accessibility service)",
+       "parameters":{"type":"OBJECT","properties":{"text":{"type":"STRING"}},"required":["text"]}},
       {"name":"go_back","description":"Navigate back on the phone (needs the accessibility service)",
        "parameters":{"type":"OBJECT","properties":{}}},
       {"name":"go_home","description":"Go to the phone home screen (needs the accessibility service)",
@@ -48,6 +50,7 @@ object LiveToolBridge {
             }
             "add_to_cart" -> str("item")?.takeIf { it.isNotBlank() }?.let { MayaIntent.CartAdd(it) }
             "open_app" -> str("query")?.takeIf { it.isNotBlank() }?.let { MayaIntent.OpenApp(it) }
+            "tap_text" -> str("text")?.takeIf { it.isNotBlank() }?.let { MayaIntent.TapText(it) }
             "read_screen" -> MayaIntent.ReadScreen
             "go_back" -> MayaIntent.GoBack
             "go_home" -> MayaIntent.GoHome

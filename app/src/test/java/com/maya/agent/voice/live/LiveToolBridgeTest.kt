@@ -40,6 +40,9 @@ class LiveToolBridgeTest {
         assertEquals(MayaIntent.ReadScreen, LiveToolBridge.toIntent(call("read_screen", "{}")))
         assertEquals(MayaIntent.OpenApp("whatsapp"),
             LiveToolBridge.toIntent(call("open_app", "{\"query\":\"whatsapp\"}")))
+        assertEquals(MayaIntent.TapText("Buy now"),
+            LiveToolBridge.toIntent(call("tap_text", "{\"text\":\"Buy now\"}")))
+        assertNull(LiveToolBridge.toIntent(call("tap_text", "{\"text\":\"\"}")))
     }
 
     @Test
@@ -52,14 +55,14 @@ class LiveToolBridgeTest {
     fun `declarations json is valid and names match mapping`() {
         val decls = JsonParser.parseString(LiveToolBridge.DECLARATIONS_JSON).asJsonArray
         val names = decls.map { it.asJsonObject.get("name").asString }.toSet()
-        assertEquals(setOf("set_timer","set_alarm","add_to_cart","open_app","read_screen","go_back","go_home"), names)
+        assertEquals(setOf("set_timer","set_alarm","add_to_cart","open_app","tap_text","read_screen","go_back","go_home"), names)
     }
 
     @Test
     fun `setup embeds tools when provided`() {
         val json = LiveProtocol.buildSetup("m", "s", "Kore", toolsJson = LiveToolBridge.DECLARATIONS_JSON)
         val tools = JsonParser.parseString(json).asJsonObject.getAsJsonObject("setup").getAsJsonArray("tools")
-        assertTrue(tools[0].asJsonObject.getAsJsonArray("functionDeclarations").size() == 7)
+        assertTrue(tools[0].asJsonObject.getAsJsonArray("functionDeclarations").size() == 8)
         val bare = LiveProtocol.buildSetup("m", "s", "Kore")
         assertTrue(!JsonParser.parseString(bare).asJsonObject.getAsJsonObject("setup").has("tools"))
     }
