@@ -21,11 +21,16 @@ import java.util.concurrent.TimeUnit
  * The app holds ONLY the anon key + the user's own session tokens.
  * Tokens live in EncryptedSharedPreferences, never in logs or chat.
  */
-class AuthRepository(context: Context) {
+class AuthRepository(
+    context: Context,
+    httpClient: OkHttpClient? = null,
+    private val supabaseUrl: String = BuildConfig.SUPABASE_URL,
+    private val anonKey: String = BuildConfig.SUPABASE_ANON_KEY,
+) {
 
     private val appContext = context.applicationContext
 
-    private val http = OkHttpClient.Builder()
+    private val http = httpClient ?: OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS) // backend cold starts
         .build()
@@ -58,7 +63,7 @@ class AuthRepository(context: Context) {
     /** Standard Supabase recovery email - same anon key, no new secret. */
     suspend fun sendPasswordReset(email: String): Result =
         withContext(Dispatchers.IO) {
-            if (BuildConfig.SUPABASE_ANON_KEY.isBlank()) {
+            if (anonKey.isBlank()) {
                 return@withContext Result.Failure("Supabase anon key missing - cannot send the reset email")
             }
             try {
@@ -66,8 +71,8 @@ class AuthRepository(context: Context) {
                 val body = json.toString()
                     .toRequestBody("application/json; charset=utf-8".toMediaType())
                 val request = Request.Builder()
-                    .url("${BuildConfig.SUPABASE_URL}/auth/v1/recover")
-                    .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
+                    .url("$supabaseUrl/auth/v1/recover")
+                    .addHeader("apikey", anonKey)
                     .post(body)
                     .build()
                 http.newCall(request).execute().use { resp ->
@@ -81,7 +86,7 @@ class AuthRepository(context: Context) {
 
     private suspend fun passwordGrant(path: String, email: String, password: String): Result =
         withContext(Dispatchers.IO) {
-            if (BuildConfig.SUPABASE_ANON_KEY.isBlank()) {
+            if (anonKey.isBlank()) {
                 return@withContext Result.Failure("Supabase anon key missing - local.properties me MAYA_SUPABASE_ANON_KEY daalo")
             }
             try {
@@ -90,8 +95,8 @@ class AuthRepository(context: Context) {
                     .add("password", password)
                     .build()
                 val request = Request.Builder()
-                    .url("${BuildConfig.SUPABASE_URL}/auth/v1/$path")
-                    .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
+                    .url("$supabaseUrl/auth/v1/$path")
+                    .addHeader("apikey", anonKey)
                     .addHeader("Content-Type", "application/x-www-form-urlencoded")
                     .post(body)
                     .build()
