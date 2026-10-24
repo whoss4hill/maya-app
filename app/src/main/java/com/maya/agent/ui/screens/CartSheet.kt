@@ -54,7 +54,7 @@ fun CartConfirmDialog(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Payment sirf tumhare 'haan' ke baad. Ek haan = ek payment.",
+                    "Payment happens only after your 'yes'. One yes = one payment.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
