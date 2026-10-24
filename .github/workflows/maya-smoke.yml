@@ -2,6 +2,7 @@ name: Maya emulator smoke (no credentials)
 
 # Runs once when this file is pushed to local-fixes (path filter), never on other pushes.
 on:
+  workflow_dispatch:
   push:
     branches: [local-fixes]
     paths: ['.github/workflows/maya-smoke.yml', '.github/scripts/maya_smoke.sh']
