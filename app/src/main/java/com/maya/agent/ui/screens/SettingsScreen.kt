@@ -40,6 +40,13 @@ import com.maya.agent.ui.components.GlassCard
 import com.maya.agent.ui.components.SectionLabel
 import com.maya.agent.ui.theme.Emerald
 import com.maya.agent.ui.theme.MayaThemeMode
+import com.maya.agent.calls.PhoneLink
+import com.maya.agent.calls.PhoneLinkSettings
+import com.maya.agent.data.telegram.ChatIdInput
+import com.maya.agent.data.telegram.TelegramControl
+import com.maya.agent.data.telegram.TelegramUi
+import com.maya.agent.data.telegram.TgResult
+import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 
 /** Screen 12 - Settings. */
@@ -66,6 +73,19 @@ fun SettingsScreen(
         if (serviceOn) ContextCompat.startForegroundService(context, Intent(context, MayaForegroundService::class.java))
     }
     var confirmWipe by remember { mutableStateOf(false) }
+
+    val tgControl = remember { TelegramControl(app.auth) }
+    var tgUi by remember { mutableStateOf<TelegramUi?>(null) }
+    var tgBusy by remember { mutableStateOf(false) }
+    var tgChatId by remember { mutableStateOf("") }
+    var tgCode by remember { mutableStateOf<String?>(null) }
+    var tgMsg by remember { mutableStateOf<String?>(null) }
+    var phoneOn by remember { mutableStateOf(prefs.getBoolean("phone_link_enabled", false)) }
+    var phoneMsg by remember { mutableStateOf<String?>(null) }
+    val callGranted = { ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED }
+    fun <T> handle(r: TgResult<T>, ok: (T) -> Unit) { when (r) { is TgResult.Ok -> ok(r.value); is TgResult.Err -> tgMsg = r.message } }
+    fun refreshTg() { scope.launch { tgBusy = true; handle(tgControl.status()) { tgUi = it }; tgBusy = false } }
+    LaunchedEffect(Unit) { if (app.auth.isSignedIn) refreshTg() else tgUi = TelegramUi(false, false, null) }
 
     Column(
         Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
@@ -156,6 +176,37 @@ fun SettingsScreen(
                 dismissButton = { TextButton(onClick = { showWakeConsent = false }) { Text("Nahi") } },
             )
         }
+
+        ControlCards(
+            tg = TelegramCardState(tgUi, tgBusy, tgChatId, tgCode, tgMsg),
+            phone = run {
+                val st = PhoneLinkSettings.status(phoneOn, callGranted(), PhoneLink.connected)
+                val label = phoneMsg ?: if (phoneOn && !serviceOn) "Turn on \"Background mein Maya\" to connect" else PhoneLinkSettings.label(st)
+                PhoneCardState(phoneOn, label, st == PhoneLinkSettings.Status.NEEDS_PERMISSION || phoneMsg != null)
+            },
+            onTgToggle = { on -> scope.launch { tgBusy = true; tgMsg = null; handle(tgControl.setEnabled(on)) { refreshTg() }; tgBusy = false } },
+            onOpenBot = { context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/maya_whoss4hill_assistant_bot"))) },
+            onChatId = { tgChatId = it; tgMsg = null },
+            onGetCode = {
+                val raw = tgChatId.trim()
+                val id = if (raw.isEmpty()) null else ChatIdInput.parse(raw)
+                if (raw.isNotEmpty() && id == null) tgMsg = "Chat ID must be digits only"
+                else scope.launch { tgBusy = true; tgMsg = null; tgCode = null; handle(tgControl.startPair(id)) { tgCode = it }; tgBusy = false }
+            },
+            onUnpair = { scope.launch { tgBusy = true; tgMsg = null; tgCode = null; handle(tgControl.unpair()) { refreshTg() }; tgBusy = false } },
+            onPhoneToggle = { on ->
+                phoneMsg = null
+                if (on && !PhoneLinkSettings.canEnable(callGranted())) phoneMsg = "Allow Phone permission first (Open permissions)"
+                else {
+                    phoneOn = on
+                    prefs.edit().putBoolean("phone_link_enabled", on).apply()
+                    if (serviceOn) ContextCompat.startForegroundService(context, Intent(context, MayaForegroundService::class.java))
+                }
+            },
+            onOpenPermissions = {
+                context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply { data = android.net.Uri.parse("package:${context.packageName}") })
+            },
+        )
 
         SectionLabel("Appearance")
         GlassCard {
