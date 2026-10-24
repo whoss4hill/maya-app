@@ -59,7 +59,7 @@ class MayaForegroundService : Service() {
                         getSharedPreferences("maya_state", MODE_PRIVATE).edit().putBoolean("wakeword_enabled", false).apply()
                         getSystemService(NotificationManager::class.java).notify(45,
                             NotificationCompat.Builder(this, CHANNEL_ID).setSmallIcon(R.drawable.ic_launcher_foreground)
-                                .setContentTitle("Maya wake word band").setContentText(msg).build())
+                                .setContentTitle("Maya wake word stopped").setContentText(msg).build())
                     },
                 )
             }
@@ -73,7 +73,7 @@ class MayaForegroundService : Service() {
         val open = PendingIntent.getActivity(this, 4, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         getSystemService(NotificationManager::class.java).notify(44,
             NotificationCompat.Builder(this, CHANNEL_ID).setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle("Maya").setContentText("Haan? Tap karke bolo")
+                .setContentTitle("Maya").setContentText("Yes? Tap and speak")
                 .setContentIntent(open).setAutoCancel(true).setTimeoutAfter(15000).build())
     }
 
@@ -128,7 +128,7 @@ class MayaForegroundService : Service() {
             this, 2, Intent(this, MayaForegroundService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        val text = if (paused) "Maya pause pe hai" else getString(R.string.notification_maya_running)
+        val text = if (paused) "Maya is paused" else getString(R.string.notification_maya_running)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Maya")
