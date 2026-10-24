@@ -228,21 +228,38 @@ say "page_render_pass=done"
 # only - on a real phone the owner picks it in system UI themselves).
 say "== assistant role verification =="
 adb shell pm query-intent-services android.service.voice.VoiceInteractionService 2>&1 | grep -a 'com.maya' | tee -a $L
-if adb shell cmd role add-role-holder android.app.role.ASSISTANT $P 2>&1 | tee -a $L; then
-  adb shell cmd role get-role-holders android.app.role.ASSISTANT 2>&1 | tee -a $L
+# cmd role exits 0 even when the grant fails - verify via get-role-holders.
+adb shell cmd role add-role-holder android.app.role.ASSISTANT $P >/dev/null 2>&1
+HOLDERS=$(adb shell cmd role get-role-holders android.app.role.ASSISTANT 2>&1 | tr -d '\r')
+say "assistant_holders=$HOLDERS"
+if echo "$HOLDERS" | grep -q "$P"; then
+  say "assistant_role_granted=YES"
   adb shell dumpsys voiceinteraction 2>/dev/null | grep -a -i -m4 'maya' | tee -a $L
-  adb shell am start -a android.settings.MANAGE_DEFAULT_APPS_SETTINGS >/dev/null 2>&1
-  sleep 3
-  adb exec-out screencap -p > smoke-p11-default-apps.png
-  adb shell am start -a android.settings.VOICE_INPUT_SETTINGS >/dev/null 2>&1
-  sleep 3
-  adb exec-out screencap -p > smoke-p11b-assistant-picker.png
-  adb shell cmd role remove-role-holder android.app.role.ASSISTANT $P 2>&1 | tee -a $L
-  adb shell am force-stop com.android.settings 2>/dev/null
-  adb shell am start -n $P/.MainActivity >/dev/null 2>&1; sleep 3
+  adb shell cmd role remove-role-holder android.app.role.ASSISTANT $P >/dev/null 2>&1
 else
-  say "assistant_role=BLOCKED in this emulator image (not a fail; device check required)"
+  say "assistant_role_granted=NO (emulator image refused shell grant; not a fail)"
 fi
+adb shell am start -a android.settings.MANAGE_DEFAULT_APPS_SETTINGS >/dev/null 2>&1
+sleep 3
+adb exec-out screencap -p > smoke-p11-default-apps.png
+adb shell am start -a android.settings.VOICE_INPUT_SETTINGS >/dev/null 2>&1
+sleep 3
+adb exec-out screencap -p > smoke-p11b-assistant-picker.png
+# Choice-list proof: open the default-assistant row and check Maya is selectable.
+if tap_on "Default digital assistant app"; then
+  sleep 2
+  adb exec-out screencap -p > smoke-p11c-assistant-choices.png
+  adb shell uiautomator dump /sdcard/wd2.xml >/dev/null 2>&1
+  if adb shell cat /sdcard/wd2.xml 2>/dev/null | grep -a -q -i 'Maya'; then
+    say "maya_in_assistant_choices=YES"
+  else
+    say "maya_in_assistant_choices=NO - choice list did not show Maya"
+  fi
+else
+  say "maya_in_assistant_choices=UNKNOWN - default-assistant row not found"
+fi
+adb shell am force-stop com.android.settings 2>/dev/null
+adb shell am start -n $P/.MainActivity >/dev/null 2>&1; sleep 3
 say "wake_model_present_by_default=$(adb shell run-as $P ls files/vosk-model 2>&1 | head -1)"
 
 exit $FAIL

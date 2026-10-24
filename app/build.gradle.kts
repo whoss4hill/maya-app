@@ -44,7 +44,7 @@ android {
         applicationId = "com.maya.agent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
+        versionCode = config("MAYA_VERSION_CODE").ifBlank { "1" }.toInt()
         versionName = "0.1.0"
 
         // MAYA_SUPABASE_ANON_KEY: public anon key only - NEVER the service-role key.
