@@ -124,7 +124,7 @@ fun HomeScreen(onNavigateToChat: (String) -> Unit) {
         }
         Spacer(Modifier.height(20.dp))
         Text(
-            "Say it, what should I do?",
+            "What can I do for you?",
             style = MaterialTheme.typography.displaySmall,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
