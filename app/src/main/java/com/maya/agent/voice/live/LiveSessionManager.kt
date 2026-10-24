@@ -44,6 +44,10 @@ class LiveSessionManager(
     private var wsUrl: String? = null
     private var model: String = "models/gemini-3.8-live"
     private var reconnectsLeft = MAX_RECONNECTS
+    @Volatile private var lastAudioAtMs: Long = 0
+
+    /** True while model audio arrived within the last 700 ms (drives the Speaking orb mood). */
+    fun isModelSpeaking(): Boolean = System.currentTimeMillis() - lastAudioAtMs < 700
 
     fun start(callback: Callback) {
         if (state == State.CONNECTING || state == State.ACTIVE) return
@@ -86,7 +90,7 @@ class LiveSessionManager(
                 mic = m
                 m.start()
             }
-            override fun onAudio(pcm: ByteArray) { player?.play(pcm) }
+            override fun onAudio(pcm: ByteArray) { lastAudioAtMs = System.currentTimeMillis(); player?.play(pcm) }
             override fun onInterrupted() { player?.flush() }
             override fun onToolCall(calls: List<LiveProtocol.ServerEvent.FunctionCall>) {
                 scope.launch {
@@ -129,7 +133,7 @@ class LiveSessionManager(
         )
         s.connect(url, setup, object : LiveSession.Listener {
             override fun onSetupComplete() { setState(State.ACTIVE, callback) }
-            override fun onAudio(pcm: ByteArray) { player?.play(pcm) }
+            override fun onAudio(pcm: ByteArray) { lastAudioAtMs = System.currentTimeMillis(); player?.play(pcm) }
             override fun onInterrupted() { player?.flush() }
             override fun onToolCall(calls: List<LiveProtocol.ServerEvent.FunctionCall>) {
                 scope.launch {

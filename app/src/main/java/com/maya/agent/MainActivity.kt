@@ -27,6 +27,7 @@ import com.maya.agent.ui.screens.PermissionsScreen
 import com.maya.agent.ui.screens.SettingsScreen
 import com.maya.agent.ui.screens.SignInScreen
 import com.maya.agent.ui.screens.VaultScreen
+import com.maya.agent.ui.screens.VoiceConversationScreen
 import com.maya.agent.ui.screens.WelcomeScreen
 import com.maya.agent.ui.theme.MayaTheme
 import com.maya.agent.ui.theme.MayaThemeMode
@@ -39,6 +40,7 @@ object Routes {
     const val HOME = "home"
     const val CHAT = "chat"
     const val CHAT_WITH_TEXT = "chat/{text}"
+    const val VOICE = "voice"
     const val MEMORY = "memory"
     const val VAULT = "vault"
     const val SETTINGS = "settings"
@@ -102,11 +104,18 @@ class MainActivity : FragmentActivity() {
                         }
                         composable(Routes.HOME) {
                             MainScaffold(MayaTab.HOME, nav) {
-                                HomeScreen(onNavigateToChat = { text ->
-                                    pendingChatText = text
-                                    nav.navigate("chat/$text".replace(" ", "%20"))
-                                })
+                                HomeScreen(
+                                    onNavigateToChat = { text ->
+                                        pendingChatText = text
+                                        nav.navigate("chat/$text".replace(" ", "%20"))
+                                    },
+                                    onNavigateToVoice = { nav.navigate(Routes.VOICE) },
+                                )
                             }
+                        }
+                        composable(Routes.VOICE) {
+                            // Approved 2026-10-24: full-screen Free talk, no scaffold/bottom nav.
+                            VoiceConversationScreen(onEnd = { nav.popBackStack() })
                         }
                         composable(Routes.CHAT) {
                             MainScaffold(MayaTab.CHAT, nav) { ChatScreen(initialText = null) }

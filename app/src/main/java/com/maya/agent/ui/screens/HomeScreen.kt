@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
 
 /** Screen 05 - Home: the orb, status, quick actions, active task, input. */
 @Composable
-fun HomeScreen(onNavigateToChat: (String) -> Unit) {
+fun HomeScreen(onNavigateToChat: (String) -> Unit, onNavigateToVoice: () -> Unit = {}) {
     val context = LocalContext.current
     val app = MayaApp.from(context)
     val scope = rememberCoroutineScope()
@@ -165,7 +165,8 @@ fun HomeScreen(onNavigateToChat: (String) -> Unit) {
             singleLine = true,
             trailingIcon = {
                 androidx.compose.material3.IconButton(onClick = {
-                    if (input.isBlank()) tapOrb() else sendText()
+                    // Approved 2026-10-24: the bar mic opens the Free-talk voice page.
+                    if (input.isBlank()) onNavigateToVoice() else sendText()
                 }) {
                     Icon(Icons.Filled.Mic, contentDescription = "Mic", tint = Emerald)
                 }
