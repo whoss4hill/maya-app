@@ -22,6 +22,12 @@ jobs:
     env:
       # Public anon key only. Never put a Supabase service-role or Gemini key here.
       ORG_GRADLE_PROJECT_MAYA_SUPABASE_ANON_KEY: ${{ vars.MAYA_SUPABASE_ANON_KEY }}
+      # v3 signing identity: keystore store/key passwords are identical for the
+      # 'maya' key. Empty on PR builds (secrets unavailable), which is fine:
+      # build.gradle.kts only applies the maya signing config when
+      # MAYA_KEYSTORE_PATH is set, and CI only sets it outside pull_request.
+      ORG_GRADLE_PROJECT_MAYA_KEYSTORE_PASSWORD: ${{ secrets.MAYA_KEYSTORE_PASSWORD }}
+      ORG_GRADLE_PROJECT_MAYA_KEY_PASSWORD: ${{ secrets.MAYA_KEYSTORE_PASSWORD }}
     steps:
       - name: Check out source
         uses: actions/checkout@v7
