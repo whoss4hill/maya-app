@@ -89,10 +89,10 @@ fun PermissionsScreen(page: Int, onNext: () -> Unit, onSkipAll: () -> Unit) {
             StatusChip("Setup $page/2", active = true)
         }
         Spacer(Modifier.height(20.dp))
-        Text("Pehle, tumhari ijazat.", style = MaterialTheme.typography.displaySmall)
+        Text("First, your permission.", style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Har permission tumhari marzi se. Skip kiya to bas us feature ke waqt dobara poochhungi.",
+            "Every permission is your choice. If you skip one, I will ask again only when that feature is needed.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -129,14 +129,14 @@ fun PermissionsScreen(page: Int, onNext: () -> Unit, onSkipAll: () -> Unit) {
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            "Permission milna, permission use karna nahi hai. Camera, mic aur location tumhare bulane par hi.",
+            "Having a permission is not the same as using it. Camera, mic and location are used only when you ask.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(16.dp))
-        MayaPrimaryButton(text = "Aage chalo", onClick = onNext)
+        MayaPrimaryButton(text = "Continue", onClick = onNext)
         TextButton(onClick = onSkipAll, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            Text("Abhi nahi", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Not now", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.height(8.dp))
     }
