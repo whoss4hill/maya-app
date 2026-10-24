@@ -66,7 +66,10 @@ object LiveToolBridge {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
             ToolExecutor(context).execute(intent) { line -> spoken = line }
         }
-        val result = spoken ?: "Done"
+        var result = spoken ?: "Done"
+        // Secret guard: nothing that looks like a credential/card leaves the device
+        // in a tool response (the backend /v1/chat path has the equivalent gate).
+        if (LiveSecretGuard.looksLikeSecret(result)) result = LiveSecretGuard.REFUSAL
         return JsonObject().apply { addProperty("result", result) }.toString()
     }
 }

@@ -129,6 +129,7 @@ object BackendClient {
         .writeTimeout(30, TimeUnit.SECONDS)
         .addInterceptor(
             HttpLoggingInterceptor().apply {
+                redactHeader("Authorization")
                 // HEADERS only for debug builds; never log bodies (user text stays private).
                 level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.HEADERS
                         else HttpLoggingInterceptor.Level.NONE
