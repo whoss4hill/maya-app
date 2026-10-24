@@ -26,9 +26,9 @@ class MemoryRepository(private val auth: AuthRepository) {
             val res = api.chat("Bearer $token", ChatRequest(message))
             Reply.Ok(res.reply ?: "...")
         } catch (e: java.net.SocketTimeoutException) {
-            Reply.Failed("Server jaag raha hai, thoda time lagega. Ek baar aur bhejo.")
+            Reply.Failed("The server is waking up and will take a moment. Please send again.")
         } catch (e: Exception) {
-            Reply.Failed("Server tak pahunch nahi paayi. Internet check karo; offline kaam chalta rahega.")
+            Reply.Failed("Could not reach the server. Check your internet; offline tasks keep working.")
         }
     }
 
