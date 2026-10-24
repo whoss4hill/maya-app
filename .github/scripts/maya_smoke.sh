@@ -13,9 +13,22 @@ adb shell pm grant $P android.permission.RECORD_AUDIO
 adb shell pm grant $P android.permission.POST_NOTIFICATIONS
 adb logcat -c
 adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
-sleep 15
+LAUNCH_PID=""
+for i in $(seq 1 9); do
+  sleep 5
+  LAUNCH_PID=$(adb shell pidof $P | tr -d '\r')
+  [ -n "$LAUNCH_PID" ] && break
+done
+if [ -z "$LAUNCH_PID" ]; then
+  adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+  for i in $(seq 1 6); do
+    sleep 5
+    LAUNCH_PID=$(adb shell pidof $P | tr -d '\r')
+    [ -n "$LAUNCH_PID" ] && break
+  done
+fi
+say "launch_pid=$LAUNCH_PID"
 adb exec-out screencap -p > smoke-1-launch.png
-LAUNCH_PID=$(adb shell pidof $P); say "launch_pid=$LAUNCH_PID"
 # owner had the background service switched on, then the phone reboots
 cat > /tmp/maya_state.xml <<'XML'
 <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
