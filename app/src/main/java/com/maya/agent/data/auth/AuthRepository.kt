@@ -11,6 +11,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import com.google.gson.JsonParser
 import java.util.concurrent.TimeUnit
 
@@ -52,6 +54,30 @@ class AuthRepository(context: Context) {
 
     suspend fun signUpWithEmail(email: String, password: String): Result =
         passwordGrant("signup", email, password)
+
+    /** Standard Supabase recovery email - same anon key, no new secret. */
+    suspend fun sendPasswordReset(email: String): Result =
+        withContext(Dispatchers.IO) {
+            if (BuildConfig.SUPABASE_ANON_KEY.isBlank()) {
+                return@withContext Result.Failure("Supabase anon key missing - cannot send the reset email")
+            }
+            try {
+                val json = com.google.gson.JsonObject().apply { addProperty("email", email) }
+                val body = json.toString()
+                    .toRequestBody("application/json; charset=utf-8".toMediaType())
+                val request = Request.Builder()
+                    .url("${BuildConfig.SUPABASE_URL}/auth/v1/recover")
+                    .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
+                    .post(body)
+                    .build()
+                http.newCall(request).execute().use { resp ->
+                    if (resp.isSuccessful) Result.Success
+                    else Result.Failure("Could not send the reset email (${resp.code}). Try once more.")
+                }
+            } catch (e: Exception) {
+                Result.Failure("Network error: ${e.message ?: "unknown"}")
+            }
+        }
 
     private suspend fun passwordGrant(path: String, email: String, password: String): Result =
         withContext(Dispatchers.IO) {

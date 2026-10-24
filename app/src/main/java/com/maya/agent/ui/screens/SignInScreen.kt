@@ -43,6 +43,21 @@ fun SignInScreen(onSignedIn: () -> Unit, onBack: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var resetSentTo by remember { mutableStateOf<String?>(null) }
+
+    fun sendReset() {
+        if (busy) return
+        val target = email.trim()
+        if (target.isEmpty()) { error = "Enter your email first, then tap Forgot password"; return }
+        busy = true; error = null; resetSentTo = null
+        scope.launch {
+            when (val result = auth.sendPasswordReset(target)) {
+                is com.maya.agent.data.auth.AuthRepository.Result.Success -> resetSentTo = target
+                is com.maya.agent.data.auth.AuthRepository.Result.Failure -> error = result.message
+            }
+            busy = false
+        }
+    }
 
     fun submit() {
         if (busy) return
@@ -81,7 +96,9 @@ fun SignInScreen(onSignedIn: () -> Unit, onBack: () -> Unit) {
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Password", style = MaterialTheme.typography.bodyMedium)
-            Text("Forgot password?", style = MaterialTheme.typography.bodyMedium, color = Emerald)
+            TextButton(onClick = { sendReset() }) {
+                Text("Forgot password?", style = MaterialTheme.typography.bodyMedium, color = Emerald)
+            }
         }
         OutlinedTextField(
             value = password,
@@ -94,6 +111,10 @@ fun SignInScreen(onSignedIn: () -> Unit, onBack: () -> Unit) {
         error?.let {
             Spacer(Modifier.height(8.dp))
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        }
+        resetSentTo?.let {
+            Spacer(Modifier.height(8.dp))
+            Text("Reset link sent to $it - check your inbox.", color = Emerald, style = MaterialTheme.typography.bodyMedium)
         }
         Spacer(Modifier.height(20.dp))
         if (busy) {

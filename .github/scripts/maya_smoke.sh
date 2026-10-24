@@ -199,20 +199,37 @@ if [ -n "$wx" ]; then
 else
   say "note: wake toggle not located for consent capture"
 fi
-# Seeded chat thread: type on the Home bar, same mic button sends when text present
+# Seeded chat thread: type on the Home bar, same mic button sends when text present.
+# IME-independent entry: one hardware key event per character ('input text' with
+# %20 escapes typed nothing on this image - spaces must be KEYCODE_SPACE).
+type_text_keyevents() {
+  local s="$1" i ch up
+  for ((i=0; i<${#s}; i++)); do
+    ch="${s:$i:1}"
+    case "$ch" in
+      ' ') adb shell input keyevent KEYCODE_SPACE ;;
+      [a-z]) up=$(printf '%s' "$ch" | tr 'a-z' 'A-Z'); adb shell input keyevent "KEYCODE_$up" ;;
+      [0-9]) adb shell input keyevent "KEYCODE_$ch" ;;
+      *) say "type_text: skipping unsupported char '$ch'" ;;
+    esac
+  done
+}
+SEED='kal sabhaar kitne baje hai'
 tap_on "Home" || say "note: Home tab not found"
 sleep 2
 tap_on "Type or speak..." || say "note: home input not found"
 sleep 2
 # No extra taps here: any tap outside the field drops its focus.
-adb shell input text 'kal%20sabhaar%20kitne%20baje%20hai'
+type_text_keyevents "$SEED"
 sleep 2
 adb shell uiautomator dump /sdcard/maya-ui.xml >/dev/null 2>&1
 if adb exec-out cat /sdcard/maya-ui.xml 2>/dev/null | grep -q 'kal sabhaar kitne baje hai'; then
   say "seeded_text_present=yes"
 else
   say "seeded_text_present=NO - retype once"
-  adb shell input text 'kal%20sabhaar%20kitne%20baje%20hai'
+  tap_on "Type or speak..." || true
+  sleep 1
+  type_text_keyevents "$SEED"
   sleep 2
   adb shell uiautomator dump /sdcard/maya-ui.xml >/dev/null 2>&1
   adb exec-out cat /sdcard/maya-ui.xml 2>/dev/null | grep -q 'kal sabhaar kitne baje hai' \
@@ -222,6 +239,18 @@ adb exec-out screencap -p > smoke-p10-chat-seeded.png
 tap_on "Mic" || say "note: send button not found"
 sleep 5
 adb exec-out screencap -p > smoke-p10b-chat-after-send.png
+# Source-verified expectation (ChatScreen.send): addUser appends the typed text to
+# the thread BEFORE any backend call, so the message is visible signed-out too.
+adb shell uiautomator dump /sdcard/maya-chat.xml >/dev/null 2>&1
+CHATXML=$(adb exec-out cat /sdcard/maya-chat.xml 2>/dev/null)
+if echo "$CHATXML" | grep -q 'kal sabhaar kitne baje hai'; then
+  say "chat_send_thread_visible=YES - typed message reached the chat thread"
+  echo "$CHATXML" | grep -q 'Please sign in first' \
+    && say "chat_signedout_reply=present (expected on emulator without an account)" \
+    || say "chat_signedout_reply=absent"
+else
+  say "chat_send_thread_visible=NO - typed message did not reach the chat thread"
+fi
 tap_on "Chat" || say "note: Chat tab not found after send"
 sleep 2
 adb exec-out screencap -p > smoke-p10c-chat-thread.png

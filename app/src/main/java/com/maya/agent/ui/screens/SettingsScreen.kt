@@ -126,14 +126,7 @@ fun SettingsScreen(
         GlassCard {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Wake with \"Maya\" (offline)", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Default OFF. Listens only while the Background switch above is ON; the notification shows Pause/Stop. Wake-word detection runs offline on this phone and its audio is not saved or sent. What you say after waking is handled by Android speech recognition and Maya's assistant. Experimental: battery and accuracy not tested yet.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Text("Wake with \"Maya\" (offline)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     Switch(
                         checked = wakeOn,
                         enabled = wakeProgress == null,
@@ -149,6 +142,11 @@ fun SettingsScreen(
                         colors = SwitchDefaults.colors(checkedTrackColor = Emerald),
                     )
                 }
+                Text(
+                    "Default OFF. Listens only while the Background switch above is ON; the notification shows Pause/Stop. Wake-word detection runs offline on this phone and its audio is not saved or sent. What you say after waking is handled by Android speech recognition and Maya's assistant. Experimental: battery and accuracy not tested yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 wakeProgress?.let { Text("Model download: $it%", color = Emerald) }
                 wakeMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 if (VoskModelStore.isInstalled(context) && wakeProgress == null) {
