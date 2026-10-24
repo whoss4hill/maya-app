@@ -36,7 +36,7 @@ object BiometricGate {
         )
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Tijori kholo")
-            .setSubtitle("Fingerprint ya device PIN se unlock karo")
+            .setSubtitle("Unlock with fingerprint or device PIN")
             .setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_WEAK or
                     BiometricManager.Authenticators.DEVICE_CREDENTIAL
