@@ -66,7 +66,7 @@ fun SignInScreen(onSignedIn: () -> Unit, onSkip: () -> Unit, onBack: () -> Unit)
         Spacer(Modifier.height(16.dp))
         Text("Wapas aa gaye?", style = MaterialTheme.typography.displaySmall)
         Text(
-            "Yaadein saath rakhne ke liye sign in karo.",
+            "Sign in to keep your memories.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -79,7 +79,7 @@ fun SignInScreen(onSignedIn: () -> Unit, onSkip: () -> Unit, onBack: () -> Unit)
         Row(verticalAlignment = Alignment.CenterVertically) {
             HorizontalDivider(Modifier.weight(1f))
             Text(
-                "  ya email se  ",
+                "  or with email  ",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -118,7 +118,7 @@ fun SignInScreen(onSignedIn: () -> Unit, onSkip: () -> Unit, onBack: () -> Unit)
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "Server jaag raha hoga - pehli request me thoda time lagta hai.",
+                "The server may be waking up. The first request takes a little longer.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -134,7 +134,7 @@ fun SignInScreen(onSignedIn: () -> Unit, onSkip: () -> Unit, onBack: () -> Unit)
                 Text("Abhi bina account chalao", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Yaadein sirf iss session tak rahengi. App band hone par memory clear ho jayegi.",
+                    "Memories last only for this session. They are cleared when the app closes.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
