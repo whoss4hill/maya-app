@@ -4,7 +4,7 @@ name: Maya emulator smoke (no credentials)
 on:
   workflow_dispatch:
   push:
-    branches: [local-fixes]
+    branches: [local-fixes, build/v3-image-merge]
     paths: ['.github/workflows/maya-smoke.yml', '.github/scripts/maya_smoke.sh']
 
 permissions:
