@@ -108,6 +108,17 @@ adb shell am force-stop $P
 adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 sleep 8
 adb exec-out screencap -p > smoke-p1-welcome.png
+# A system ANR dialog (e.g. "Pixel Launcher isn't responding") can steal the
+# foreground for the whole run (run 40107620068: every onboarding tap missed).
+# Dismiss it and re-foreground the app before the first onboarding tap.
+if adb shell uiautomator dump /sdcard/anr.xml >/dev/null 2>&1 && adb shell cat /sdcard/anr.xml 2>/dev/null | grep -a -q "isn't responding"; then
+  if tap_on "Wait"; then
+    say "anr_dialog_dismissed=Wait"
+    sleep 3
+    adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+    sleep 5
+  fi
+fi
 tap_on "Get started" || fail "onboarding: Get started not found"
 sleep 3
 adb exec-out screencap -p > smoke-p2-permissions1.png
