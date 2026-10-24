@@ -47,13 +47,13 @@ fun WelcomeScreen(onStart: () -> Unit) {
         Spacer(Modifier.height(32.dp))
         Text("Main Maya.", style = MaterialTheme.typography.displaySmall)
         Text(
-            "Tum bolo, main karti hu.",
+            "You say it, I do it.",
             style = MaterialTheme.typography.headlineMedium,
             color = Emerald,
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            "Phone sambhalna ho ya baatein yaad rakhna, bas keh dena. Main yahin hu.",
+            "Handling your phone or remembering things - just say it. Maya is here.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -66,20 +66,20 @@ fun WelcomeScreen(onStart: () -> Unit) {
             ) {
                 Icon(Icons.Filled.Shield, contentDescription = null, tint = Emerald)
                 Text(
-                    "Tumhari marzi, tumhara control. Yaadon par tumhara control hai.",
+                    "Your choice, your control. Your memories are yours to manage.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }
         Spacer(Modifier.weight(1f))
         MayaPrimaryButton(
-            text = "Shuru karein",
+            text = "Get started",
             onClick = onStart,
             trailing = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) },
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Bhasha: Hinglish (badalne ke liye Settings me jao)",
+            "Replies are in Hinglish",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
