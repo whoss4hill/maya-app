@@ -25,19 +25,19 @@ fun ErrorState(
 ) {
     val (title, body, cta) = when (kind) {
         ErrorKind.OFFLINE -> Triple(
-            "Internet nahi hai",
-            "Offline bhi alarms, timers aur on-device kaam chalta rahega. Yaadein sync baad me hongi.",
-            "Phir try karo",
+            "No internet",
+            "Alarms, timers and other on-device tasks keep working offline. Memories sync later.",
+            "Try again",
         )
         ErrorKind.BACKEND_WAKING -> Triple(
-            "Server jaag raha hai",
-            "Pehli request me ~1 minute lag sakta hai. Chup mat samjho - main yahin hu.",
-            "Ek baar aur",
+            "Server is waking up",
+            "The first request can take about a minute. Maya is still here.",
+            "One more try",
         )
         ErrorKind.QUOTA -> Triple(
-            "Aaj ka quota khatam",
-            "AI wale jawab abhi nahi aa payenge. On-device kaam chalta rahega.",
-            "Baad me try karo",
+            "Daily quota used up",
+            "AI answers are unavailable right now. On-device tasks keep working.",
+            "Try later",
         )
     }
     Column(
