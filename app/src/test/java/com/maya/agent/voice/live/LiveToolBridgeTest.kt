@@ -44,6 +44,8 @@ class LiveToolBridgeTest {
         assertNull(LiveToolBridge.toIntent(call("tap_text", "{\"text\":\"\"}")))
         // read_screen stays unbridged until the user explicitly grants screen-content sharing
         assertNull(LiveToolBridge.toIntent(call("read_screen", "{}")))
+        // weather/time stays undeclared until terms + grounding semantics are verified
+        assertNull(LiveToolBridge.toIntent(call("get_date_time_and_weather", "{}")))
     }
 
     @Test
@@ -66,5 +68,14 @@ class LiveToolBridgeTest {
         assertTrue(tools[0].asJsonObject.getAsJsonArray("functionDeclarations").size() == 7)
         val bare = LiveProtocol.buildSetup("m", "s", "Kore")
         assertTrue(!JsonParser.parseString(bare).asJsonObject.getAsJsonObject("setup").has("tools"))
+        val withSearch = JsonParser.parseString(
+            LiveProtocol.buildSetup("m", "s", "Kore", includeGoogleSearch = true)
+        ).asJsonObject.getAsJsonObject("setup").getAsJsonArray("tools")
+        assertTrue(withSearch.any { it.asJsonObject.has("googleSearch") })
+        val both = JsonParser.parseString(
+            LiveProtocol.buildSetup("m", "s", "Kore", toolsJson = LiveToolBridge.DECLARATIONS_JSON, includeGoogleSearch = true)
+        ).asJsonObject.getAsJsonObject("setup").getAsJsonArray("tools")
+        assertTrue(both.size() == 2 && both.any { it.asJsonObject.has("googleSearch") }
+            && both.any { it.asJsonObject.has("functionDeclarations") })
     }
 }

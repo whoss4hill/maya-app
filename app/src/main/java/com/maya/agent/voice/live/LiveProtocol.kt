@@ -27,6 +27,7 @@ object LiveProtocol {
         enableOutputTranscription: Boolean = false,
         resumptionHandle: String? = null,
         toolsJson: String? = null,
+        includeGoogleSearch: Boolean = false,
     ): String {
         val setup = JsonObject().apply {
             addProperty("model", if (model.startsWith("models/")) model else "models/$model")
@@ -55,11 +56,14 @@ object LiveProtocol {
                 })
             }
             if (enableOutputTranscription) add("outputAudioTranscription", JsonObject())
-            if (!toolsJson.isNullOrBlank()) {
+            if (!toolsJson.isNullOrBlank() || includeGoogleSearch) {
                 add("tools", com.google.gson.JsonArray().apply {
-                    add(JsonObject().apply {
-                        add("functionDeclarations", JsonParser.parseString(toolsJson).asJsonArray)
-                    })
+                    if (!toolsJson.isNullOrBlank()) {
+                        add(JsonObject().apply {
+                            add("functionDeclarations", JsonParser.parseString(toolsJson).asJsonArray)
+                        })
+                    }
+                    if (includeGoogleSearch) add(JsonObject().apply { add("googleSearch", JsonObject()) })
                 })
             }
             add("realtimeInputConfig", JsonObject().apply {

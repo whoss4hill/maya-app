@@ -35,6 +35,37 @@ object LiveToolBridge {
        "parameters":{"type":"OBJECT","properties":{}}}
     ]"""
 
+    private fun timeAndWeather(context: Context): String {
+        val fmt = java.text.SimpleDateFormat("EEEE, d MMMM yyyy, h:mm:ss a", java.util.Locale("en", "IN"))
+        val ist = fmt.format(java.util.Date()) // device timezone, not forced IST
+        var weather = "Weather data unavailable (location permission might be needed)."
+        try {
+            val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                val lm = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+                val loc = runCatching {
+                    lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
+                        ?: lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                }.getOrNull()
+                if (loc != null) {
+                    val url = "https://api.open-meteo.com/v1/forecast?latitude=" + loc.latitude +
+                        "&longitude=" + loc.longitude +
+                        "&current_weather=true&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto"
+                    val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                        connectTimeout = 8000; readTimeout = 8000
+                    }
+                    weather = conn.inputStream.bufferedReader().use { it.readText() }
+                    conn.disconnect()
+                }
+            }
+        } catch (e: Exception) {
+            weather = "Could not fetch weather data"
+        }
+        return "Current date & time: " + ist + ". Weather Data: " + weather
+    }
+
     /** Pure mapping; null = unknown/unsupported call. */
     fun toIntent(call: LiveProtocol.ServerEvent.FunctionCall): MayaIntent? {
         val args = try { JsonParser.parseString(call.argsJson).asJsonObject } catch (e: Exception) { JsonObject() }
@@ -60,6 +91,14 @@ object LiveToolBridge {
 
     /** Execute and capture the spoken line as the tool result for the model. */
     suspend fun execute(context: Context, call: LiveProtocol.ServerEvent.FunctionCall): String {
+        // Time/weather mirrors Zoya's getDateTimeAndWeather: free Open-Meteo (no key)
+        // + device location; network off the main thread.
+        if (call.name == "get_date_time_and_weather") {
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                timeAndWeather(context)
+            }
+            return JsonObject().apply { addProperty("result", result) }.toString()
+        }
         val intent = toIntent(call)
             ?: return "{\"result\":\"Ye action voice me available nahi hai\"}"
         var spoken: String? = null

@@ -87,6 +87,8 @@ class LiveSessionManager(
             systemInstruction = systemInstruction,
             voiceName = voiceName,
             toolsJson = toolsJson,
+            // googleSearch intentionally NOT enabled: model/tool compatibility and
+            // free-tier billing behavior unverified; enable only after verification.
         )
         s.connect(url, setup, object : LiveSession.Listener {
             override fun onSetupComplete() {
@@ -137,6 +139,8 @@ class LiveSessionManager(
             voiceName = voiceName,
             resumptionHandle = handle,
             toolsJson = toolsJson,
+            // googleSearch intentionally NOT enabled: model/tool compatibility and
+            // free-tier billing behavior unverified; enable only after verification.
         )
         s.connect(url, setup, object : LiveSession.Listener {
             override fun onSetupComplete() { setState(State.ACTIVE, callback) }

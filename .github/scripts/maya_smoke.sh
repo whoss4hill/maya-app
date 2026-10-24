@@ -107,10 +107,16 @@ EOF2
 adb shell am force-stop $P
 adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 sleep 8
+adb exec-out screencap -p > smoke-p1-welcome.png
 tap_on "Get started" || fail "onboarding: Get started not found"
 sleep 3
+adb exec-out screencap -p > smoke-p2-permissions1.png
+tap_on "Continue" || fail "onboarding: Continue not found"
+sleep 3
+adb exec-out screencap -p > smoke-p2b-permissions2.png
 tap_on "Not now" || fail "onboarding: Not now not found"
 sleep 3
+adb exec-out screencap -p > smoke-p3-signin.png
 tap_on "Skip for now ->" || tap_on "Skip for now -&gt;" || fail "sign-in: skip not found"
 sleep 5
 adb exec-out screencap -p > smoke-3-home.png
@@ -125,7 +131,27 @@ if [ -z "$(adb shell pidof $P)" ]; then
 fi
 tap_on "End voice chat" && sleep 2 || fail "voice: End voice chat close button not found"
 adb exec-out screencap -p > smoke-5-back-home.png
-say "voice_render_pass=done"
+# Remaining pages via the bottom nav (empty/demo states: placeholder backend,
+# signed out - no memories, no chats, no vault entries).
+tap_on "Chat" || say "note: Chat tab not found"
+sleep 3
+adb exec-out screencap -p > smoke-p6-chat.png
+tap_on "Memory" || say "note: Memory tab not found"
+sleep 3
+adb exec-out screencap -p > smoke-p7-memory.png
+tap_on "Vault" || say "note: Vault tab not found"
+sleep 3
+adb exec-out screencap -p > smoke-p8-vault.png
+tap_on "Settings" || say "note: Settings tab not found"
+sleep 3
+adb exec-out screencap -p > smoke-p9-settings.png
+tap_on "Home" || say "note: Home tab not found"
+sleep 2
+if [ -z "$(adb shell pidof $P)" ]; then
+  adb logcat -d -v brief | grep -a -B2 -A12 'FATAL EXCEPTION' | head -30 | tee -a $L
+  fail "app died during page-render pass"
+fi
+say "page_render_pass=done"
 
 say "wake_model_present_by_default=$(adb shell run-as $P ls files/vosk-model 2>&1 | head -1)"
 
