@@ -80,6 +80,7 @@ fun PermissionsScreen(page: Int, onNext: () -> Unit, onSkipAll: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
     ) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -97,7 +98,7 @@ fun PermissionsScreen(page: Int, onNext: () -> Unit, onSkipAll: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(20.dp))
-        GlassCard(modifier = Modifier.verticalScroll(rememberScrollState()).weight(1f)) {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
             items.forEachIndexed { index, item ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
@@ -133,6 +134,7 @@ fun PermissionsScreen(page: Int, onNext: () -> Unit, onSkipAll: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        }
         Spacer(Modifier.height(16.dp))
         MayaPrimaryButton(text = "Continue", onClick = onNext)
         TextButton(onClick = onSkipAll, modifier = Modifier.align(Alignment.CenterHorizontally)) {
