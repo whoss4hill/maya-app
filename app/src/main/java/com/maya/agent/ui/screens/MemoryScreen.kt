@@ -67,7 +67,7 @@ fun MemoryScreen() {
     Column(Modifier.fillMaxSize().padding(24.dp)) {
         Text("MAYA", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(8.dp))
-        Text("TUMHARI MEMORY", style = MaterialTheme.typography.labelSmall, color = Emerald)
+        Text("YOUR MEMORY", style = MaterialTheme.typography.labelSmall, color = Emerald)
         Text("Your memories.", style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(4.dp))
         Text(
@@ -84,9 +84,11 @@ fun MemoryScreen() {
             singleLine = true,
         )
         Spacer(Modifier.height(12.dp))
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()),
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(
+            Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             kinds.forEach { k ->
                 FilterChip(
