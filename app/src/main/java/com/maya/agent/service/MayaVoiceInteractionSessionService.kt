@@ -15,14 +15,18 @@ import com.maya.agent.MainActivity
 class MayaVoiceInteractionSessionService : VoiceInteractionSessionService() {
     override fun onNewSession(args: Bundle?): VoiceInteractionSession = MayaSession(this)
 
+    companion object {
+        /** Assistant gesture -> the app's existing wake flow. */
+        fun buildAssistantLaunchIntent(context: Context): Intent =
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .setAction(MainActivity.ACTION_WAKE)
+    }
+
     private class MayaSession(context: Context) : VoiceInteractionSession(context) {
         override fun onShow(args: Bundle?, showFlags: Int) {
             try {
-                context.startActivity(
-                    Intent(context, MainActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        .setAction(MainActivity.ACTION_WAKE)
-                )
+                context.startActivity(buildAssistantLaunchIntent(context))
             } catch (_: Exception) { /* keep silent; nothing claimed */ }
             finish()
         }

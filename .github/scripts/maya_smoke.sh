@@ -189,6 +189,27 @@ if [ -z "$(adb shell pidof $P)" ]; then
 fi
 say "page_render_pass=done"
 
+
+# Default-assistant presence: prove the VoiceInteractionService is registered,
+# the role can actually be held, and the system binds our service (CI fixture
+# only - on a real phone the owner picks it in system UI themselves).
+say "== assistant role verification =="
+adb shell pm query-intent-services android.service.voice.VoiceInteractionService 2>&1 | grep -a 'com.maya' | tee -a $L
+if adb shell cmd role add-role-holder android.app.role.ASSISTANT $P 2>&1 | tee -a $L; then
+  adb shell cmd role get-role-holders android.app.role.ASSISTANT 2>&1 | tee -a $L
+  adb shell dumpsys voiceinteraction 2>/dev/null | grep -a -i -m4 'maya' | tee -a $L
+  adb shell am start -a android.settings.MANAGE_DEFAULT_APPS_SETTINGS >/dev/null 2>&1
+  sleep 3
+  adb exec-out screencap -p > smoke-p11-default-apps.png
+  adb shell am start -a android.settings.VOICE_INPUT_SETTINGS >/dev/null 2>&1
+  sleep 3
+  adb exec-out screencap -p > smoke-p11b-assistant-picker.png
+  adb shell cmd role remove-role-holder android.app.role.ASSISTANT $P 2>&1 | tee -a $L
+  adb shell am force-stop com.android.settings 2>/dev/null
+  adb shell am start -n $P/.MainActivity >/dev/null 2>&1; sleep 3
+else
+  say "assistant_role=BLOCKED in this emulator image (not a fail; device check required)"
+fi
 say "wake_model_present_by_default=$(adb shell run-as $P ls files/vosk-model 2>&1 | head -1)"
 
 exit $FAIL
