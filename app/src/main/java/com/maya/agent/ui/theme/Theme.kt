@@ -38,7 +38,7 @@ private val LightColors = lightColorScheme(
 
 @Composable
 fun MayaTheme(
-    mode: MayaThemeMode = MayaThemeMode.DARK,
+    mode: MayaThemeMode = MayaThemeMode.LIGHT,
     content: @Composable () -> Unit,
 ) {
     val dark = when (mode) {

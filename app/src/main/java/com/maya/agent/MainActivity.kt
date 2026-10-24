@@ -70,7 +70,14 @@ class MainActivity : FragmentActivity() {
         handleServiceIntent(intent)
         handleAuthRedirect(intent)
         setContent {
-            var themeMode by rememberSaveable { mutableStateOf(MayaThemeMode.DARK.name) }
+            // Default theme is LIGHT (owner's 2026-10-24 choice). A manual
+            // Settings choice persists; only a fresh/no-choice install sees Light.
+            var themeMode by rememberSaveable {
+                mutableStateOf(
+                    getSharedPreferences("maya_state", MODE_PRIVATE)
+                        .getString("theme_mode", null) ?: MayaThemeMode.LIGHT.name
+                )
+            }
             var pendingChatText by rememberSaveable { mutableStateOf<String?>(null) }
             val nav = rememberNavController()
             navController = nav
@@ -148,7 +155,11 @@ class MainActivity : FragmentActivity() {
                             MainScaffold(MayaTab.SETTINGS, nav) {
                                 SettingsScreen(
                                     themeMode = MayaThemeMode.valueOf(themeMode),
-                                    onThemeMode = { themeMode = it.name },
+                                    onThemeMode = { mode ->
+                                        themeMode = mode.name
+                                        getSharedPreferences("maya_state", MODE_PRIVATE).edit()
+                                            .putString("theme_mode", mode.name).apply()
+                                    },
                                     onSignedOut = { nav.navigate(Routes.SIGNIN) { popUpTo(0) } },
                                 )
                             }
