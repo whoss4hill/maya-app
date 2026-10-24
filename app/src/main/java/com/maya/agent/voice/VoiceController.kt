@@ -46,7 +46,7 @@ class VoiceController(
 
     fun startListening() {
         if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
-            onError("Is phone pe speech recognition available nahi hai")
+            onError("Speech recognition is not available on this phone")
             return
         }
         if (recognizer == null) {
@@ -60,17 +60,17 @@ class VoiceController(
                         val text = results
                             ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                             ?.firstOrNull()
-                        if (text != null) onResult(text) else onError("Kuch sunai nahi diya, phir bolo?")
+                        if (text != null) onResult(text) else onError("I did not hear anything. Please say it again.")
                     }
                     override fun onError(error: Int) {
                         listeningNow = false; onListeningChanged(false)
                         onError(
                             when (error) {
-                                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Mic permission nahi mili - Settings mein allow karo"
-                                SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Internet nahi hai - speech recognition ke liye net chahiye"
-                                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Mic abhi busy hai - thodi der baad try karo"
-                                SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Kuch sunai nahi diya, phir bolo?"
-                                else -> "Awaaz saaf nahi aayi - ek baar phir bolo"
+                                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Mic permission not granted. Allow it in Settings."
+                                SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "No internet. Speech recognition needs a connection."
+                                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "The mic is busy. Try again in a moment."
+                                SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "I did not hear anything. Please say it again."
+                                else -> "I could not make out the speech. Please say it again."
                             }
                         )
                     }
