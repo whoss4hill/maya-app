@@ -26,6 +26,7 @@ object LiveProtocol {
         enableResumption: Boolean = true,
         enableOutputTranscription: Boolean = false,
         resumptionHandle: String? = null,
+        toolsJson: String? = null,
     ): String {
         val setup = JsonObject().apply {
             addProperty("model", if (model.startsWith("models/")) model else "models/$model")
@@ -54,6 +55,13 @@ object LiveProtocol {
                 })
             }
             if (enableOutputTranscription) add("outputAudioTranscription", JsonObject())
+            if (!toolsJson.isNullOrBlank()) {
+                add("tools", com.google.gson.JsonArray().apply {
+                    add(JsonObject().apply {
+                        add("functionDeclarations", JsonParser.parseString(toolsJson).asJsonArray)
+                    })
+                })
+            }
             add("realtimeInputConfig", JsonObject().apply {
                 add("automaticActivityDetection", JsonObject())
             })

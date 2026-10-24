@@ -24,6 +24,7 @@ class LiveSessionManager(
     private val systemInstruction: String,
     private val voiceName: String,
     private val bearerTokenProvider: suspend () -> String?,
+    private val toolsJson: String? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
 ) {
     enum class State { IDLE, CONNECTING, ACTIVE, ENDED }
@@ -42,7 +43,11 @@ class LiveSessionManager(
     private var mic: LiveMicCapture? = null
     private var player: LiveAudioPlayer? = null
     private var wsUrl: String? = null
-    private var model: String = "models/gemini-3.8-live"
+    // Staging-approved model (2026-10-24): 3.8-live stayed silent on audio-in in
+    // bounded tests; 2.5 native-audio passed end-to-end on raw-key AND constrained
+    // token with the sessionResumption lock. The server mint locks the model anyway;
+    // this fallback only applies if the mint response omits it.
+    private var model: String = "models/gemini-2.5-flash-native-audio-preview-12-2025"
     private var reconnectsLeft = MAX_RECONNECTS
     @Volatile private var lastAudioAtMs: Long = 0
 
@@ -81,6 +86,7 @@ class LiveSessionManager(
             model = model,
             systemInstruction = systemInstruction,
             voiceName = voiceName,
+            toolsJson = toolsJson,
         )
         s.connect(url, setup, object : LiveSession.Listener {
             override fun onSetupComplete() {
@@ -130,6 +136,7 @@ class LiveSessionManager(
             systemInstruction = systemInstruction,
             voiceName = voiceName,
             resumptionHandle = handle,
+            toolsJson = toolsJson,
         )
         s.connect(url, setup, object : LiveSession.Listener {
             override fun onSetupComplete() { setState(State.ACTIVE, callback) }

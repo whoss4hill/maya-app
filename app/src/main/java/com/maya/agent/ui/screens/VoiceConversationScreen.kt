@@ -48,6 +48,7 @@ import com.maya.agent.ui.theme.TextSecondaryDark
 import com.maya.agent.voice.live.LiveSessionManager
 import com.maya.agent.voice.live.LiveVoiceConfig
 import com.maya.agent.voice.live.LiveProtocol
+import com.maya.agent.voice.live.LiveToolBridge
 import kotlinx.coroutines.delay
 
 /**
@@ -70,6 +71,7 @@ fun VoiceConversationScreen(onEnd: () -> Unit) {
             systemInstruction = LiveVoiceConfig.SYSTEM_INSTRUCTION,
             voiceName = LiveVoiceConfig.VOICE_NAME,
             bearerTokenProvider = { app.auth.validAccessToken() },
+            toolsJson = LiveToolBridge.DECLARATIONS_JSON,
         )
     }
 
@@ -78,8 +80,7 @@ fun VoiceConversationScreen(onEnd: () -> Unit) {
             override fun onState(s: LiveSessionManager.State) { state = s }
             override fun onError(message: String) { errorLine = message }
             override suspend fun onToolCall(call: LiveProtocol.ServerEvent.FunctionCall): String =
-                // Voice tool-calling is a separate increment; be honest for now.
-                "{\"result\":\"Voice actions are not wired yet - ask me on the chat page.\"}"
+                LiveToolBridge.execute(context, call)
         }
     }
 
