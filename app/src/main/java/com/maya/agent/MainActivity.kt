@@ -62,11 +62,10 @@ class MainActivity : FragmentActivity() {
         // DEBUG-only render hook for the credential-free emulator smoke:
         // treats the session as onboarded so page renders can run. Release
         // builds ignore this extra; there is no guest/no-account mode.
-        val debugBuild = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        if (debugBuild && intent.getBooleanExtra("maya_smoke_demo", false)) {
+        if (SmokeDemoGate.allowed(applicationInfo, intent)) {
             getSharedPreferences("maya_state", MODE_PRIVATE).edit()
                 .putBoolean("onboarding_done", true)
-                .putBoolean("smoke_demo_mode", true).apply()
+                .putBoolean(SmokeDemoGate.PREF, true).apply()
         }
         handleServiceIntent(intent)
         handleAuthRedirect(intent)
@@ -81,9 +80,9 @@ class MainActivity : FragmentActivity() {
                     modifier = androidx.compose.ui.Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-                    val smokeDemo = debuggable &&
-                        getSharedPreferences("maya_state", MODE_PRIVATE).getBoolean("smoke_demo_mode", false)
+                    val smokeDemo = SmokeDemoGate.allowed(applicationInfo, null) ||
+                        ((applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+                            getSharedPreferences("maya_state", MODE_PRIVATE).getBoolean(SmokeDemoGate.PREF, false))
                     val start = when {
                         !onboardingDone() -> Routes.WELCOME
                         !MayaApp.from(this).auth.isSignedIn && !smokeDemo -> Routes.SIGNIN
