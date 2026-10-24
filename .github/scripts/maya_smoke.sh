@@ -33,7 +33,7 @@ adb shell am broadcast -a android.intent.action.BOOT_COMPLETED -n $P/.service.Bo
 grep -q "Permission Denial\|Exception" /tmp/boot.out && fail "boot broadcast not delivered"
 grep -q "Broadcast completed" /tmp/boot.out || fail "boot broadcast did not complete"
 sleep 8
-BN=$(adb shell dumpsys notification --noredact | grep -c "Phone restart hua"); say "boot_notice_count=$BN"
+BN=$(adb shell dumpsys notification --noredact | grep -c "Phone restarted"); say "boot_notice_count=$BN"
 [ "$BN" -ge 1 ] || fail "no tap-to-resume notice after boot on API 34"
 FS=$(adb shell dumpsys activity services $P | grep -c "ServiceRecord.*MayaForegroundService"); say "fgs_service_records_after_boot=$FS"
 [ "$FS" -eq 0 ] || fail "boot started the mic FGS on API 34"
