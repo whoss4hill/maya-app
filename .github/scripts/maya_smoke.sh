@@ -66,6 +66,67 @@ FC=$(grep -c 'FATAL EXCEPTION' logcat.txt); say "fatal_count=$FC"
 [ -n "$(adb shell pidof $P)" ] || say "note: app process not running at end (service refused and stopped cleanly is acceptable)"
 [ -n "$LAUNCH_PID" ] || fail "app did not launch"
 grep -a -B1 -A12 'FATAL EXCEPTION' logcat.txt | grep -a "$P\|Exception" | head -10 | tee -a $L
+
+# --- Approved Free-talk voice screen render pass (credential-free) ---
+# Navigates onboarding -> skip sign-in -> Home -> mic, then screencaps the
+# voice page. Placeholder backend means the session must fail; what we prove
+# here is that the approved screen renders on a real emulator (layout, orb,
+# state, end button) and that mint failure is surfaced, not a crash.
+tap_on() { # $1 = exact text or content-desc as it appears in the UI dump
+  local need="$1" x="" y="" i
+  for i in $(seq 1 6); do
+    adb shell uiautomator dump /sdcard/wd.xml >/dev/null 2>&1
+    adb shell "cat /sdcard/wd.xml" > /tmp/wd.xml 2>/dev/null
+    read x y <<EOF2
+$(python3 - "$need" <<'PY'
+import sys, re
+s = open('/tmp/wd.xml').read()
+needle = sys.argv[1]
+for m in re.finditer(r'<node[^>]*>', s):
+    tag = m.group(0)
+    t = re.search(r'text="([^"]*)"', tag)
+    d = re.search(r'content-desc="([^"]*)"', tag)
+    if (t and t.group(1) == needle) or (d and d.group(1) == needle):
+        b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', tag)
+        if b:
+            x1, y1, x2, y2 = map(int, b.groups())
+            print((x1 + x2) // 2, (y1 + y2) // 2)
+            break
+PY
+)
+EOF2
+    [ -n "$x" ] && break
+    sleep 3
+  done
+  if [ -z "$x" ]; then say "tap_on: '$need' not found"; return 1; fi
+  adb shell input tap "$x" "$y"
+  say "tapped '$need' at $x,$y"
+  return 0
+}
+
+adb shell am force-stop $P
+adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+sleep 8
+tap_on "Get started" || fail "onboarding: Get started not found"
+sleep 3
+tap_on "Not now" || fail "onboarding: Not now not found"
+sleep 3
+tap_on "Skip for now ->" || tap_on "Skip for now -&gt;" || fail "sign-in: skip not found"
+sleep 5
+adb exec-out screencap -p > smoke-3-home.png
+tap_on "Mic" || fail "home: mic affordance not found"
+sleep 10
+adb exec-out screencap -p > smoke-4-voice.png
+# The voice session must fail against the placeholder backend; the app must
+# stay alive and keep the approved screen up.
+if [ -z "$(adb shell pidof $P)" ]; then
+  adb logcat -d -v brief | grep -a -B2 -A12 'FATAL EXCEPTION' | head -30 | tee -a $L
+  fail "app died during voice-screen pass"
+fi
+tap_on "End voice chat" && sleep 2 || fail "voice: End voice chat close button not found"
+adb exec-out screencap -p > smoke-5-back-home.png
+say "voice_render_pass=done"
+
 say "wake_model_present_by_default=$(adb shell run-as $P ls files/vosk-model 2>&1 | head -1)"
 
 exit $FAIL
