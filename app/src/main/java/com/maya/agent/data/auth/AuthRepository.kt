@@ -72,14 +72,14 @@ class AuthRepository(context: Context) {
                 http.newCall(request).execute().use { resp ->
                     if (!resp.isSuccessful) {
                         return@withContext when (resp.code) {
-                            400 -> Result.Failure("Email ya password check karo")
-                            422 -> Result.Failure("Ye email pehle se registered lagti hai")
-                            else -> Result.Failure("Sign-in nahi hua (${resp.code}). Server jaag raha hoga - ek baar aur try karo.")
+                            400 -> Result.Failure("Check your email or password")
+                            422 -> Result.Failure("This email seems to be registered already")
+                            else -> Result.Failure("Sign-in failed (${resp.code}). The server may be waking up. Try once more.")
                         }
                     }
                     val json = JsonParser.parseString(resp.body?.string().orEmpty()).asJsonObject
                     val token = json.get("access_token")?.asString
-                    if (token == null) return@withContext Result.Failure("Token nahi mila")
+                    if (token == null) return@withContext Result.Failure("No token received")
                     prefs.edit()
                         .putString("access_token", token)
                         .putString("refresh_token", json.get("refresh_token")?.asString)
@@ -89,7 +89,7 @@ class AuthRepository(context: Context) {
                     Result.Success
                 }
             } catch (e: Exception) {
-                Result.Failure("Network error - internet check karke dobara try karo")
+                Result.Failure("Network error. Check your internet and try again")
             }
         }
 
