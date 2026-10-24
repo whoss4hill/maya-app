@@ -46,9 +46,24 @@ class VoiceController(
     val isListening: Boolean get() = listeningNow
     private var listeningNow = false
 
+    /**
+     * "Available" must mean a recognizer other than our own: the app declares a
+     * stub RecognitionService (it exists so Android can list Maya as a default
+     * assistant choice), and isRecognitionAvailable would count it.
+     */
+    private fun recognitionAvailable(): Boolean {
+        return try {
+            val intent = Intent(android.speech.RecognitionService.SERVICE_INTERFACE)
+            appContext.packageManager.queryIntentServices(intent, 0)
+                .any { it.serviceInfo?.packageName != appContext.packageName }
+        } catch (_: Exception) {
+            SpeechRecognizer.isRecognitionAvailable(appContext)
+        }
+    }
+
     fun startListening() {
         if (listeningNow) return // one turn at a time; a re-start would busy-error the recognizer
-        if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
+        if (!recognitionAvailable()) {
             onError("Speech recognition is not available on this phone")
             return
         }

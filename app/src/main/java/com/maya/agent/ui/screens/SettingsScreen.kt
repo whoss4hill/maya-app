@@ -230,6 +230,24 @@ fun SettingsScreen(
                         data = android.net.Uri.parse("package:${context.packageName}")
                     })
                 }) { Text("Permission Manager (system settings)", color = Emerald) }
+                TextButton(onClick = {
+                    // Opens Android's own default-assistant picker; the choice
+                    // always happens in system UI, never silently in-app.
+                    try {
+                        if (android.os.Build.VERSION.SDK_INT >= 29) {
+                            val rm = context.getSystemService(android.app.role.RoleManager::class.java)
+                            if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_ASSISTANT)) {
+                                context.startActivity(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_ASSISTANT))
+                            } else {
+                                context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS))
+                            }
+                        } else {
+                            context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS))
+                        }
+                    } catch (_: Exception) {
+                        context.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+                    }
+                }) { Text("Set Maya as default assistant (system picker)", color = Emerald) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Floating orb", style = MaterialTheme.typography.titleMedium)

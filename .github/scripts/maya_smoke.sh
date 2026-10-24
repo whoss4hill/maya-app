@@ -156,12 +156,31 @@ adb exec-out screencap -p > smoke-p9c-settings-bottom.png
 tap_on "Home" || say "note: Home tab not found"
 sleep 2
 tap_on "Type or speak..." || say "note: home input not found"
+sleep 2
+adb shell input tap 540 1215   # belt-and-braces focus on the input bar itself
 sleep 1
 adb shell input text 'kal%20sabhaar%20kitne%20baje%20hai'
-sleep 1
+sleep 2
+adb shell uiautomator dump /sdcard/maya-ui.xml >/dev/null 2>&1
+if adb exec-out cat /sdcard/maya-ui.xml 2>/dev/null | grep -q 'kal sabhaar kitne baje hai'; then
+  say "seeded_text_present=yes"
+else
+  say "seeded_text_present=NO (first try) - retype once"
+  adb shell input tap 540 1215
+  sleep 1
+  adb shell input text 'kal%20sabhaar%20kitne%20baje%20hai'
+  sleep 2
+  adb shell uiautomator dump /sdcard/maya-ui.xml >/dev/null 2>&1
+  adb exec-out cat /sdcard/maya-ui.xml 2>/dev/null | grep -q 'kal sabhaar kitne baje hai' \
+    && say "seeded_text_present=yes(retry)" || say "seeded_text_present=STILL_NO"
+fi
+adb exec-out screencap -p > smoke-p10-chat-seeded.png
 tap_on "Mic" || say "note: send button not found"
 sleep 5
-adb exec-out screencap -p > smoke-p10-chat-seeded.png
+adb exec-out screencap -p > smoke-p10b-chat-after-send.png
+tap_on "Chat" || say "note: Chat tab not found after send"
+sleep 2
+adb exec-out screencap -p > smoke-p10c-chat-thread.png
 tap_on "Home" || say "note: Home tab not found after chat"
 sleep 2
 if [ -z "$(adb shell pidof $P)" ]; then

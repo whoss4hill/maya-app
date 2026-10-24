@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,7 +32,7 @@ import com.maya.agent.ui.components.MayaPrimaryButton
 import com.maya.agent.ui.theme.Emerald
 import kotlinx.coroutines.launch
 
-/** Screen 04 - Sign in ("Wapas aa gaye?") with Google, email, or skip. */
+/** Screen 04 - Sign in ("Wapas aa gaye?") with the owner's existing account, or skip. */
 @Composable
 fun SignInScreen(onSignedIn: () -> Unit, onSkip: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
@@ -46,12 +44,13 @@ fun SignInScreen(onSignedIn: () -> Unit, onSkip: () -> Unit, onBack: () -> Unit)
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    fun submit(signUp: Boolean) {
+    fun submit() {
         if (busy) return
         busy = true; error = null
         scope.launch {
-            val result = if (signUp) auth.signUpWithEmail(email, password)
-                         else auth.signInWithEmail(email, password)
+            // Existing accounts only: the owner signs in with the account
+            // they already have. No Google OAuth, no in-app sign-up.
+            val result = auth.signInWithEmail(email, password)
             busy = false
             when (result) {
                 is com.maya.agent.data.auth.AuthRepository.Result.Success -> onSignedIn()
@@ -71,21 +70,6 @@ fun SignInScreen(onSignedIn: () -> Unit, onSkip: () -> Unit, onBack: () -> Unit)
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(28.dp))
-        OutlinedButton(
-            onClick = { context.startActivity(auth.googleSignInIntent()) },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Continue with Google", style = MaterialTheme.typography.titleMedium) }
-        Spacer(Modifier.height(20.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            HorizontalDivider(Modifier.weight(1f))
-            Text(
-                "  or with email  ",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            HorizontalDivider(Modifier.weight(1f))
-        }
-        Spacer(Modifier.height(20.dp))
         Text("Email", style = MaterialTheme.typography.bodyMedium)
         OutlinedTextField(
             value = email,
@@ -123,10 +107,7 @@ fun SignInScreen(onSignedIn: () -> Unit, onSkip: () -> Unit, onBack: () -> Unit)
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            MayaPrimaryButton(text = "Sign in", onClick = { submit(signUp = false) })
-        }
-        TextButton(onClick = { submit(signUp = true) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-            Text("Naya account banayein", color = Emerald)
+            MayaPrimaryButton(text = "Sign in", onClick = { submit() })
         }
         Spacer(Modifier.weight(1f))
         GlassCard {
