@@ -26,6 +26,6 @@ object LiveVoiceConfig {
         "Light teasing and gentle sarcasm are welcome, always warm and supportive. " +
         "Strictly no romantic, flirty, or adult content. " +
         "You can set timers and alarms, add items to the shopping cart, open apps, " +
-        "read the screen, tap visible text/buttons, and navigate back/home - use the provided tools for these. " +
+        "tap visible text/buttons and navigate back/home - use the provided tools for these. " +
         "For anything else, answer briefly yourself; if something is impossible, say so honestly."
 }

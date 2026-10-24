@@ -27,8 +27,6 @@ object LiveToolBridge {
        "parameters":{"type":"OBJECT","properties":{"item":{"type":"STRING"}},"required":["item"]}},
       {"name":"open_app","description":"Open an installed app by name",
        "parameters":{"type":"OBJECT","properties":{"query":{"type":"STRING"}},"required":["query"]}},
-      {"name":"read_screen","description":"Read the visible text of the current screen (needs the accessibility service)",
-       "parameters":{"type":"OBJECT","properties":{}}},
       {"name":"tap_text","description":"Tap a visible text/button on the current screen (needs the accessibility service)",
        "parameters":{"type":"OBJECT","properties":{"text":{"type":"STRING"}},"required":["text"]}},
       {"name":"go_back","description":"Navigate back on the phone (needs the accessibility service)",
@@ -51,7 +49,9 @@ object LiveToolBridge {
             "add_to_cart" -> str("item")?.takeIf { it.isNotBlank() }?.let { MayaIntent.CartAdd(it) }
             "open_app" -> str("query")?.takeIf { it.isNotBlank() }?.let { MayaIntent.OpenApp(it) }
             "tap_text" -> str("text")?.takeIf { it.isNotBlank() }?.let { MayaIntent.TapText(it) }
-            "read_screen" -> MayaIntent.ReadScreen
+            // read_screen deliberately NOT bridged: in Live the result would be
+            // transmitted to the model (new audience for screen contents). Re-enable
+            // only with the user's explicit screen-context sharing grant.
             "go_back" -> MayaIntent.GoBack
             "go_home" -> MayaIntent.GoHome
             else -> null
