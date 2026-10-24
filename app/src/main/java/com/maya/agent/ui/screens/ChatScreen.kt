@@ -233,7 +233,7 @@ fun ChatScreen(initialText: String? = null) {
                 value = input,
                 onValueChange = { input = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Bolo ya likho...") },
+                placeholder = { Text("Speak or type...") },
                 singleLine = true,
             )
             Spacer(Modifier.widthIn(min = 8.dp))
