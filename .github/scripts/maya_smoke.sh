@@ -117,7 +117,10 @@ adb exec-out screencap -p > smoke-p2b-permissions2.png
 tap_on "Not now" || fail "onboarding: Not now not found"
 sleep 3
 adb exec-out screencap -p > smoke-p3-signin.png
-tap_on "Skip for now ->" || tap_on "Skip for now -&gt;" || fail "sign-in: skip not found"
+# No guest/no-account mode anymore (owner-only, personal API): the smoke enters
+# via the DEBUG-only demo extra; release builds ignore it.
+adb shell am force-stop $P
+adb shell am start -n $P/.MainActivity --ez maya_smoke_demo true >/dev/null 2>&1
 sleep 5
 adb exec-out screencap -p > smoke-3-home.png
 tap_on "Mic" || fail "home: mic affordance not found"
@@ -152,6 +155,39 @@ adb exec-out screencap -p > smoke-p9b-settings-mid.png
 adb shell input swipe 540 1900 540 300 600
 sleep 2
 adb exec-out screencap -p > smoke-p9c-settings-bottom.png
+# Wake-word consent dialog: tap the toggle, capture the honest consent copy,
+# then dismiss with No - no model download, no mic enabled.
+adb shell input swipe 540 300 540 1900 600
+sleep 2
+adb shell input swipe 540 300 540 1900 600
+sleep 2
+adb shell uiautomator dump /sdcard/wd.xml >/dev/null 2>&1
+adb shell "cat /sdcard/wd.xml" > /tmp/wd.xml 2>/dev/null
+read wx wy <<EOF2
+$(python3 - <<'PY'
+import re
+s = open('/tmp/wd.xml').read()
+for m in re.finditer(r'<node[^>]*>', s):
+    tag = m.group(0)
+    t = re.search(r'text="([^"]*)"', tag)
+    if t and t.group(1).startswith('Wake with'):
+        b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', tag)
+        if b:
+            x1, y1, x2, y2 = map(int, b.groups())
+            print(1000, (y1 + y2) // 2)
+            break
+PY
+)
+EOF2
+if [ -n "$wx" ]; then
+  adb shell input tap "$wx" "$wy"
+  sleep 2
+  adb exec-out screencap -p > smoke-p9d-wake-consent.png
+  tap_on "No" || say "note: wake consent dismiss button not found"
+  sleep 1
+else
+  say "note: wake toggle not located for consent capture"
+fi
 # Seeded chat thread: type on the Home bar, same mic button sends when text present
 tap_on "Home" || say "note: Home tab not found"
 sleep 2

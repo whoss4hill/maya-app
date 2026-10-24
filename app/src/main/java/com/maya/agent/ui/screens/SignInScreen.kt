@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 
 /** Screen 04 - Sign in ("Wapas aa gaye?") with the owner's existing account, or skip. */
 @Composable
-fun SignInScreen(onSignedIn: () -> Unit, onSkip: () -> Unit, onBack: () -> Unit) {
+fun SignInScreen(onSignedIn: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     val auth = MayaApp.from(context).auth
     val scope = rememberCoroutineScope()
@@ -110,20 +110,6 @@ fun SignInScreen(onSignedIn: () -> Unit, onSkip: () -> Unit, onBack: () -> Unit)
             MayaPrimaryButton(text = "Sign in", onClick = { submit() })
         }
         Spacer(Modifier.weight(1f))
-        GlassCard {
-            Column {
-                Text("Abhi bina account chalao", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Memories last only for this session. They are cleared when the app closes.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.End)) {
-                    Text("Skip for now ->", color = Emerald)
-                }
-            }
-        }
         Spacer(Modifier.height(16.dp))
     }
 }

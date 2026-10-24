@@ -59,6 +59,15 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // DEBUG-only render hook for the credential-free emulator smoke:
+        // treats the session as onboarded so page renders can run. Release
+        // builds ignore this extra; there is no guest/no-account mode.
+        val debugBuild = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (debugBuild && intent.getBooleanExtra("maya_smoke_demo", false)) {
+            getSharedPreferences("maya_state", MODE_PRIVATE).edit()
+                .putBoolean("onboarding_done", true)
+                .putBoolean("smoke_demo_mode", true).apply()
+        }
         handleServiceIntent(intent)
         handleAuthRedirect(intent)
         setContent {
@@ -72,9 +81,12 @@ class MainActivity : FragmentActivity() {
                     modifier = androidx.compose.ui.Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
+                    val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                    val smokeDemo = debuggable &&
+                        getSharedPreferences("maya_state", MODE_PRIVATE).getBoolean("smoke_demo_mode", false)
                     val start = when {
                         !onboardingDone() -> Routes.WELCOME
-                        !MayaApp.from(this).auth.isSignedIn -> Routes.SIGNIN
+                        !MayaApp.from(this).auth.isSignedIn && !smokeDemo -> Routes.SIGNIN
                         else -> Routes.HOME
                     }
                     NavHost(navController = nav, startDestination = start) {
@@ -98,7 +110,6 @@ class MainActivity : FragmentActivity() {
                         composable(Routes.SIGNIN) {
                             SignInScreen(
                                 onSignedIn = { nav.navigate(Routes.HOME) { popUpTo(0) } },
-                                onSkip = { nav.navigate(Routes.HOME) { popUpTo(0) } },
                                 onBack = { nav.popBackStack() },
                             )
                         }
