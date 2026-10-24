@@ -54,7 +54,7 @@ fun HomeScreen(onNavigateToChat: (String) -> Unit) {
 
     var input by remember { mutableStateOf("") }
     var listening by remember { mutableStateOf(false) }
-    var statusLine by remember { mutableStateOf("Main yahin hu") }
+    var statusLine by remember { mutableStateOf("Maya is here") }
     var lastReply by remember { mutableStateOf<String?>(null) }
 
     val voice = remember {
@@ -62,12 +62,12 @@ fun HomeScreen(onNavigateToChat: (String) -> Unit) {
             context,
             onListeningChanged = { listening = it },
             onResult = { heard ->
-                statusLine = "Soch rahi hu..."
+                statusLine = "Thinking..."
                 scope.launch {
                     when (val r = app.memories.chat(heard)) {
                         is MemoryRepository.Reply.Ok -> {
                             lastReply = r.text
-                            statusLine = "Main yahin hu"
+                            statusLine = "Maya is here"
                             app.voice.speak(r.text)
                         }
                         is MemoryRepository.Reply.Failed -> {
@@ -76,7 +76,7 @@ fun HomeScreen(onNavigateToChat: (String) -> Unit) {
                             app.voice.speak(r.reason)
                         }
                         MemoryRepository.Reply.SignedOut -> {
-                            lastReply = "Pehle sign in karo, tab yaadein kaam karengi."
+                            lastReply = "Sign in first so memories can work."
                             statusLine = "Sign in pending"
                         }
                     }
@@ -124,7 +124,7 @@ fun HomeScreen(onNavigateToChat: (String) -> Unit) {
         }
         Spacer(Modifier.height(20.dp))
         Text(
-            "Bolo, kya karna hai?",
+            "Say it, what should I do?",
             style = MaterialTheme.typography.displaySmall,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
@@ -161,7 +161,7 @@ fun HomeScreen(onNavigateToChat: (String) -> Unit) {
             value = input,
             onValueChange = { input = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Type karo ya bolo...") },
+            placeholder = { Text("Type or speak...") },
             singleLine = true,
             trailingIcon = {
                 androidx.compose.material3.IconButton(onClick = {
