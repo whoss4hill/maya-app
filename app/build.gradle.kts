@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -18,6 +19,22 @@ fun config(key: String): String =
         ?: localProps.getProperty(key)
         ?: System.getenv(key)
         ?: ""
+
+// Fail fast: an APK/bundle without a valid public anon key and backend URL can never sign anyone in, so refuse to build it.
+// Prints only what is wrong, never the key itself.
+if (gradle.startParameter.taskNames.any { t -> listOf("assemble", "bundle", "install").any { t.contains(it, ignoreCase = true) } }) {
+    val key = config("MAYA_SUPABASE_ANON_KEY")
+    val sbUrl = config("MAYA_SUPABASE_URL")
+    val backend = config("MAYA_BACKEND_URL")
+    require(backend.startsWith("https://")) { "MAYA_BACKEND_URL must be set to an https URL" }
+    require(sbUrl.startsWith("https://") && sbUrl.endsWith(".supabase.co")) { "MAYA_SUPABASE_URL must be set (https://<ref>.supabase.co)" }
+    val parts = key.split(".")
+    require(parts.size == 3 && key.startsWith("eyJ")) { "MAYA_SUPABASE_ANON_KEY is missing or not a JWT. Set the public anon key (Actions variable, local.properties or ORG_GRADLE_PROJECT_MAYA_SUPABASE_ANON_KEY)." }
+    val payload = String(Base64.getUrlDecoder().decode(parts[1].padEnd((parts[1].length + 3) / 4 * 4, '=')))
+    val ref = sbUrl.removePrefix("https://").substringBefore(".")
+    require(payload.contains("\"role\":\"anon\"")) { "MAYA_SUPABASE_ANON_KEY is not an anon-role key (never use a service-role key in the app)" }
+    require(payload.contains("\"ref\":\"$ref\"")) { "MAYA_SUPABASE_ANON_KEY belongs to a different Supabase project than MAYA_SUPABASE_URL" }
+}
 
 android {
     namespace = "com.maya.agent"
