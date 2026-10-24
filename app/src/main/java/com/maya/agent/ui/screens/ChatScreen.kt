@@ -66,8 +66,8 @@ fun ChatScreen(initialText: String? = null) {
 
     fun placeNow(m: DialCommand.Match) {
         ChatStore.addMaya(
-            if (DialCommand.call(context, m.number)) "${m.name} (${m.number}) ko call laga rahi hu."
-            else "Call nahi lag payi. Is phone par call app nahi mila ya permission refuse hui."
+            if (DialCommand.call(context, m.number)) "Calling ${m.name} (${m.number})."
+            else "The call could not be placed. No calling app was found on this phone, or the permission was refused."
         )
     }
 
@@ -77,7 +77,7 @@ fun ChatScreen(initialText: String? = null) {
         val m = pendingCall; pendingCall = null
         if (m == null) return@rememberLauncherForActivityResult
         if (granted) placeNow(m)
-        else ChatStore.addMaya("Call ki permission nahi mili, isliye call nahi lagayi. Chaho toh settings mein Phone permission de do.")
+        else ChatStore.addMaya("Phone permission was not granted, so no call was placed. You can allow Phone permission in Settings.")
     }
 
     fun requestCall(m: DialCommand.Match) {
@@ -88,10 +88,10 @@ fun ChatScreen(initialText: String? = null) {
     fun resolveName(name: String) {
         val found = DialCommand.lookup(context, name)
         when {
-            found.isEmpty() -> ChatStore.addMaya("\"$name\" naam ka contact nahi mila. Number bolo, jaise: call 98XXXXXXXX.")
+            found.isEmpty() -> ChatStore.addMaya("\"$name\" - no contact with that name was found. Say a number, for example: call 98XXXXXXXX.")
             found.size == 1 -> requestCall(found[0])
             else -> ChatStore.addMaya(
-                "\"$name\" ke kai numbers mile, kisko call karu? Pura number likho:\n" +
+                "Found several numbers for \"$name\". Which one should I call? Type the full number:\n" +
                     found.joinToString("\n") { "${it.name}: ${it.number}" }
             )
         }
@@ -103,7 +103,7 @@ fun ChatScreen(initialText: String? = null) {
         val n = pendingName; pendingName = null
         if (n == null) return@rememberLauncherForActivityResult
         if (granted) resolveName(n)
-        else ChatStore.addMaya("Contacts ki permission nahi hai, naam se call nahi laga sakti. Number likho.")
+        else ChatStore.addMaya("Contacts permission is not granted, so I cannot call by name. Type a number.")
     }
 
     fun handleCall(req: DialCommand.Request) {
@@ -132,7 +132,7 @@ fun ChatScreen(initialText: String? = null) {
                 }
                 is MemoryRepository.Reply.Failed -> ChatStore.addMaya(r.reason)
                 MemoryRepository.Reply.SignedOut ->
-                    ChatStore.addMaya("Sign in karo pehle - bina account ke main yaad nahi rakh paungi.")
+                    ChatStore.addMaya("Please sign in first. Without an account I cannot remember things.")
             }
             thinking = false
         }
@@ -163,7 +163,7 @@ fun ChatScreen(initialText: String? = null) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            StatusChip(if (thinking) "Soch rahi hu..." else "Online", active = !thinking)
+            StatusChip(if (thinking) "Thinking..." else "Online", active = !thinking)
         }
         Spacer(Modifier.height(8.dp))
         LazyColumn(
@@ -218,7 +218,7 @@ fun ChatScreen(initialText: String? = null) {
             if (thinking) {
                 item {
                     Text(
-                        "Maya likh rahi hai...",
+                        "Maya is typing...",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
