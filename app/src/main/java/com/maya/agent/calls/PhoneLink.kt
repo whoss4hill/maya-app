@@ -24,6 +24,7 @@ import kotlin.concurrent.thread
  * Every command goes through PhoneCommand (expiry, replay, permission checks) and is acknowledged honestly.
  */
 class PhoneLink(private val context: Context) {
+    companion object { @Volatile var connected = false }
     private val main = Handler(Looper.getMainLooper())
     private val client = OkHttpClient.Builder().pingInterval(30, TimeUnit.SECONDS).readTimeout(0, TimeUnit.SECONDS).build()
     @Volatile private var ws: WebSocket? = null
@@ -46,7 +47,7 @@ class PhoneLink(private val context: Context) {
 
     fun stop() {
         wanted = false
-        ws?.close(1000, "stopped"); ws = null
+        ws?.close(1000, "stopped"); ws = null; connected = false
         main.removeCallbacksAndMessages(null)
     }
 
@@ -58,15 +59,15 @@ class PhoneLink(private val context: Context) {
             val url = BuildConfig.BACKEND_URL.trimEnd('/').replaceFirst("https://", "wss://").replaceFirst("http://", "ws://") + "/v1/phone/ws"
             val req = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
             ws = client.newWebSocket(req, object : WebSocketListener() {
-                override fun onOpen(webSocket: WebSocket, response: Response) { backoffMs = 5_000L }
+                override fun onOpen(webSocket: WebSocket, response: Response) { backoffMs = 5_000L; connected = true }
                 override fun onMessage(webSocket: WebSocket, text: String) {
                     val ack = PhoneCommand.handle(text, System.currentTimeMillis() / 1000, deps) ?: return
                     webSocket.send(JsonObject().apply {
                         addProperty("ack", ack.id); addProperty("status", ack.status); addProperty("text", ack.text)
                     }.toString())
                 }
-                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { retry() }
-                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) { retry() }
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { connected = false; retry() }
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) { connected = false; retry() }
             })
         }
     }
