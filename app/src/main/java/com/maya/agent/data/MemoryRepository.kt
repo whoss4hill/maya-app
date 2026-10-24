@@ -37,9 +37,13 @@ class MemoryRepository(private val auth: AuthRepository) {
         try { api.memories("Bearer $token").memories } catch (e: Exception) { emptyList() }
     }
 
-    suspend fun addMemory(kind: String, content: String) = withContext(Dispatchers.IO) {
-        val token = auth.validAccessToken() ?: return@withContext
-        try { api.addMemory("Bearer $token", MemoryCreate(kind, content)) } catch (_: Exception) {}
+    /** Returns null on success/failure-without-detail, or a user message when the server refuses the content as a secret. */
+    suspend fun addMemory(kind: String, content: String): String? = withContext(Dispatchers.IO) {
+        val token = auth.validAccessToken() ?: return@withContext null
+        try { api.addMemory("Bearer $token", MemoryCreate(kind, content)); null }
+        catch (e: retrofit2.HttpException) {
+            if (e.code() == 422) "That looks like a password or secret, so it was not saved. Keep secrets in the Vault." else null
+        } catch (_: Exception) { null }
     }
 
     suspend fun deleteMemory(id: String) = withContext(Dispatchers.IO) {
