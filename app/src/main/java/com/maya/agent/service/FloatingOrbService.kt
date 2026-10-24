@@ -55,7 +55,7 @@ class FloatingOrbService : Service() {
         val composeView = ComposeView(this).apply {
             setContent {
                 MayaTheme {
-                    VoiceOrb(mood = OrbMood.IDLE, size = 72.dp)
+                    VoiceOrb(mood = OrbState.mood.value, size = 72.dp)
                 }
             }
         }

@@ -12,3 +12,4 @@ app/build/
 *.keystore
 *.jks
 .env
+app/src/main/assets/vosk-model-en/

@@ -46,10 +46,18 @@ object Routes {
 
 class MainActivity : FragmentActivity() {
 
+    companion object {
+        /** Fired when the wake word summons Maya from the background. */
+        const val ACTION_WAKE = "com.maya.agent.action.WAKE"
+        /** Fired when a voice cart request needs the confirm dialog. */
+        const val ACTION_SHOW_CART = "com.maya.agent.action.SHOW_CART"
+    }
+
     private var navController: NavHostController? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleServiceIntent(intent)
         handleAuthRedirect(intent)
         setContent {
             var themeMode by rememberSaveable { mutableStateOf(MayaThemeMode.DARK.name) }
@@ -127,6 +135,22 @@ class MainActivity : FragmentActivity() {
                             }
                         }
                     }
+
+                    // Cart-confirm gate: voice cart requests wait here for an
+                    // explicit yes. No payment in v3 - confirm only records.
+                    com.maya.agent.data.CartStore.pending.value?.let { draft ->
+                        com.maya.agent.ui.screens.CartConfirmDialog(
+                            title = "Cart confirm karo",
+                            lines = listOf(com.maya.agent.ui.screens.CartLine(draft.item, "Price store pe")),
+                            total = "Checkout pe final hoga",
+                            warning = "Maya payment nahi karti - ye sirf order note hai.",
+                            onConfirm = {
+                                com.maya.agent.data.CartStore.confirm()
+                                com.maya.agent.data.ChatStore.addMaya("${'$'}{draft.item} ka order note save kar liya")
+                            },
+                            onCancel = { com.maya.agent.data.CartStore.dismiss() },
+                        )
+                    }
                 }
             }
         }
@@ -134,7 +158,32 @@ class MainActivity : FragmentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        handleServiceIntent(intent)
         handleAuthRedirect(intent)
+    }
+
+    private fun handleServiceIntent(intent: Intent?) {
+        when (intent?.action) {
+            ACTION_WAKE -> {
+                // Summoned by the wake word while locked/screen off.
+                if (android.os.Build.VERSION.SDK_INT >= 27) {
+                    setShowWhenLocked(true)
+                    setTurnScreenOn(true)
+                } else {
+                    @Suppress("DEPRECATION")
+                    window.addFlags(
+                        android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                            android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
+                    )
+                }
+                if (MayaApp.from(this).auth.isSignedIn) {
+                    navController?.navigate(Routes.HOME) { popUpTo(0) }
+                }
+            }
+            ACTION_SHOW_CART -> {
+                // CartStore.pending drives the dialog; nothing else needed here.
+            }
+        }
     }
 
     private fun handleAuthRedirect(intent: Intent?) {
