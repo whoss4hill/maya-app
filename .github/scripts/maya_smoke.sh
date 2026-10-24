@@ -145,7 +145,24 @@ adb exec-out screencap -p > smoke-p8-vault.png
 tap_on "Settings" || say "note: Settings tab not found"
 sleep 3
 adb exec-out screencap -p > smoke-p9-settings.png
+# Settings is a long scroll page: capture the lower regions the first shot cuts off
+adb shell input swipe 540 1900 540 300 600
+sleep 2
+adb exec-out screencap -p > smoke-p9b-settings-mid.png
+adb shell input swipe 540 1900 540 300 600
+sleep 2
+adb exec-out screencap -p > smoke-p9c-settings-bottom.png
+# Seeded chat thread: type on the Home bar, same mic button sends when text present
 tap_on "Home" || say "note: Home tab not found"
+sleep 2
+tap_on "Type or speak..." || say "note: home input not found"
+sleep 1
+adb shell input text 'kal%20sabhaar%20kitne%20baje%20hai'
+sleep 1
+tap_on "Mic" || say "note: send button not found"
+sleep 5
+adb exec-out screencap -p > smoke-p10-chat-seeded.png
+tap_on "Home" || say "note: Home tab not found after chat"
 sleep 2
 if [ -z "$(adb shell pidof $P)" ]; then
   adb logcat -d -v brief | grep -a -B2 -A12 'FATAL EXCEPTION' | head -30 | tee -a $L
