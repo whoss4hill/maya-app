@@ -28,6 +28,12 @@ if [ -z "$LAUNCH_PID" ]; then
   done
 fi
 say "launch_pid=$LAUNCH_PID"
+if [ -z "$LAUNCH_PID" ]; then
+  # logcat was cleared right before monkey, so this window is launch-only:
+  # distinguish deterministic startup fault (fatal/ANR/missing activity) from timing flake
+  say "launcher_resolution=$(adb shell cmd package resolve-activity --brief $P 2>&1 | tr '\n' ' ' | tail -c 200)"
+  adb logcat -d -v brief | grep -aE 'FATAL EXCEPTION|AndroidRuntime|ANR in|ActivityManager|ActivityTaskManager' | tail -40 | tee -a $L
+fi
 adb exec-out screencap -p > smoke-1-launch.png
 # owner had the background service switched on, then the phone reboots
 cat > /tmp/maya_state.xml <<'XML'
