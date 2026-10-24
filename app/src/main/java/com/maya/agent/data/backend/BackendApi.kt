@@ -39,6 +39,11 @@ data class TaskDto(
 )
 data class TasksResponse(val tasks: List<TaskDto>)
 
+data class TelegramStatus(val bound: Boolean, val enabled: Boolean, val bound_suffix: String?)
+data class PairStartRequest(val chat_id: Long? = null)
+data class PairStartResponse(val code: String, val expires_in: Int)
+data class ToggleRequest(val on: Boolean)
+
 data class HealthResponse(val ok: Boolean, val service: String?, val time: String?)
 
 interface BackendApi {
@@ -65,6 +70,18 @@ interface BackendApi {
         @Header("Authorization") bearer: String,
         @Path("id") id: String,
     )
+
+    @GET("/v1/telegram/status")
+    suspend fun telegramStatus(@Header("Authorization") bearer: String): TelegramStatus
+
+    @POST("/v1/telegram/pair/start")
+    suspend fun telegramPairStart(@Header("Authorization") bearer: String, @Body body: PairStartRequest): PairStartResponse
+
+    @POST("/v1/telegram/toggle")
+    suspend fun telegramToggle(@Header("Authorization") bearer: String, @Body body: ToggleRequest): retrofit2.Response<Unit>
+
+    @POST("/v1/telegram/revoke")
+    suspend fun telegramRevoke(@Header("Authorization") bearer: String): retrofit2.Response<Unit>
 
     @GET("/v1/tasks")
     suspend fun tasks(@Header("Authorization") bearer: String): TasksResponse
