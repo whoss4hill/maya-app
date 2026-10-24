@@ -129,7 +129,7 @@ fun PermissionsScreen(page: Int, onNext: () -> Unit, onSkipAll: () -> Unit) {
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            "Having a permission is not the same as using it. Camera, mic and location are used only when you ask.",
+            "Having a permission is not the same as using it. Camera and location are used only when you ask. The microphone listens in the background for the wake word only if you turn that on, and you can pause it any time.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
