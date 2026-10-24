@@ -48,11 +48,31 @@ jobs:
         run: |
           sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
 
+      - name: Decode signing keystore
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          if [[ -z "${{ secrets.MAYA_KEYSTORE_BASE64 }}" ]]; then
+            echo '::error::MAYA_KEYSTORE_BASE64 secret missing - refusing to build an APK with a random debug cert'
+            exit 1
+          fi
+          echo "${{ secrets.MAYA_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/maya.jks"
+          echo "ORG_GRADLE_PROJECT_MAYA_KEYSTORE_PATH=$RUNNER_TEMP/maya.jks" >> "$GITHUB_ENV"
       - name: Build and check
         shell: bash
         run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:lintDebug :app:testDebugUnitTest
+      - name: Verify APK is the pinned v3 signing identity
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          CERT=$("$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk)
+          echo "$CERT"
+          echo "$CERT" | grep -qi 'f7d4fb78c010e121b66df3605620d436233a7f1f0c61f6c2a0a4990736bed023' || {
+            echo '::error::APK cert does not match the pinned v3 identity - STOP, do not distribute'
+            exit 1
+          }
 
       - name: Verify APK signature and copy download
         shell: bash
