@@ -93,16 +93,16 @@ fun SettingsScreen(
     ) {
         Text("Settings", style = MaterialTheme.typography.displaySmall)
         Text(
-            "Awaaz, privacy aur phone ke controls.",
+            "Voice, privacy and phone controls.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        SectionLabel("Bhasha aur Awaaz")
+        SectionLabel("Language and Voice")
         GlassCard {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("Background mein Maya", style = MaterialTheme.typography.titleMedium)
+                Column(Modifier.weight(1f)) {
+                    Text("Maya in the background", style = MaterialTheme.typography.titleMedium)
                     Text(
                         "\"Hey Maya\" wake word + persistent notification",
                         style = MaterialTheme.typography.bodyMedium,
@@ -127,9 +127,9 @@ fun SettingsScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("\"Maya\" bolke jagao (offline)", style = MaterialTheme.typography.titleMedium)
+                        Text("Wake with \"Maya\" (offline)", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Default OFF. Sirf upar wala Background switch ON ho tab sunti hai, notification mein Pause/Stop dikhta hai. Awaaz phone se bahar nahi jaati, save nahi hoti. Experimental: battery aur accuracy test baaki.",
+                            "Default OFF. Listens only while the Background switch above is ON; the notification shows Pause/Stop. Wake-word detection runs offline on this phone and its audio is not saved or sent. What you say after waking is handled by Android speech recognition and Maya's assistant. Experimental: battery and accuracy not tested yet.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -141,8 +141,8 @@ fun SettingsScreen(
                             wakeMessage = null
                             if (!on) applyWake(false)
                             else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
-                                wakeMessage = "Pehle Permission Manager se Microphone allow karo"
-                            else if (!serviceOn) wakeMessage = "Pehle \"Background mein Maya\" ON karo"
+                                wakeMessage = "Allow Microphone in Permission Manager first"
+                            else if (!serviceOn) wakeMessage = "Turn on \"Maya in the background\" first"
                             else if (VoskModelStore.isInstalled(context)) applyWake(true)
                             else showWakeConsent = true
                         },
@@ -152,8 +152,8 @@ fun SettingsScreen(
                 wakeProgress?.let { Text("Model download: $it%", color = Emerald) }
                 wakeMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 if (VoskModelStore.isInstalled(context) && wakeProgress == null) {
-                    TextButton(onClick = { applyWake(false); VoskModelStore.delete(context); wakeMessage = "Model hata diya" }) {
-                        Text("Downloaded model delete karo", color = Emerald)
+                    TextButton(onClick = { applyWake(false); VoskModelStore.delete(context); wakeMessage = "Model deleted" }) {
+                        Text("Delete downloaded model", color = Emerald)
                     }
                 }
             }
@@ -162,7 +162,7 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { showWakeConsent = false },
                 title = { Text("Offline model download?") },
-                text = { Text("Wake word ke liye ~${VoskModelStore.SIZE_MB} MB ka free open-source (Apache-2.0) speech model download hoga, alphacephei.com se. Mobile data lag sakta hai. Mic sirf tab sunega jab Background switch ON ho aur Pause nahi ho. Kabhi bhi OFF ya delete kar sakte ho.") },
+                text = { Text("The wake word needs a free open-source (Apache-2.0) speech model, about ${VoskModelStore.SIZE_MB} MB, downloaded from alphacephei.com. Mobile data may be used. The mic listens only while the Background switch is ON and Maya is not paused. You can turn it off or delete the model any time.") },
                 confirmButton = {
                     TextButton(onClick = {
                         showWakeConsent = false; wakeProgress = 0
@@ -171,9 +171,9 @@ fun SettingsScreen(
                             wakeProgress = null
                             if (err == null) applyWake(true) else wakeMessage = err
                         }.start()
-                    }) { Text("Download karo", color = Emerald) }
+                    }) { Text("Download", color = Emerald) }
                 },
-                dismissButton = { TextButton(onClick = { showWakeConsent = false }) { Text("Nahi") } },
+                dismissButton = { TextButton(onClick = { showWakeConsent = false }) { Text("No") } },
             )
         }
 
@@ -181,7 +181,7 @@ fun SettingsScreen(
             tg = TelegramCardState(tgUi, tgBusy, tgChatId, tgCode, tgMsg),
             phone = run {
                 val st = PhoneLinkSettings.status(phoneOn, callGranted(), PhoneLink.connected)
-                val label = phoneMsg ?: if (phoneOn && !serviceOn) "Turn on \"Background mein Maya\" to connect" else PhoneLinkSettings.label(st)
+                val label = phoneMsg ?: if (phoneOn && !serviceOn) "Turn on \"Maya in the background\" to connect" else PhoneLinkSettings.label(st)
                 PhoneCardState(phoneOn, label, st == PhoneLinkSettings.Status.NEEDS_PERMISSION || phoneMsg != null)
             },
             onTgToggle = { on -> scope.launch { tgBusy = true; tgMsg = null; handle(tgControl.setEnabled(on)) { refreshTg() }; tgBusy = false } },
@@ -234,7 +234,7 @@ fun SettingsScreen(
                     Column(Modifier.weight(1f)) {
                         Text("Floating orb", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Doosri apps ke upar chhota Maya orb",
+                            "Small Maya orb over other apps",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -262,7 +262,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
-                    "Yaadein tumhare account se sync hoti hain. Secrets kabhi cloud pe nahi jaate.",
+                    "Memories sync with your account. Vault secrets stay on this device.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -282,17 +282,17 @@ fun SettingsScreen(
     if (confirmWipe) {
         AlertDialog(
             onDismissRequest = { confirmWipe = false },
-            title = { Text("Saari yaadein mita doon?") },
-            text = { Text("Ye wapas nahi aayengi. Pakka?") },
+            title = { Text("Delete all memories?") },
+            text = { Text("This cannot be undone. Sure?") },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
                         app.memories.memories().forEach { app.memories.deleteMemory(it.id) }
                         confirmWipe = false
                     }
-                }) { Text("Haan, mita do", color = MaterialTheme.colorScheme.error) }
+                }) { Text("Yes, delete", color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { confirmWipe = false }) { Text("Rehne do") } },
+            dismissButton = { TextButton(onClick = { confirmWipe = false }) { Text("Cancel") } },
         )
     }
 }
