@@ -38,7 +38,7 @@ import com.maya.agent.ui.components.GlassCard
 import com.maya.agent.ui.theme.Emerald
 import kotlinx.coroutines.launch
 
-/** Screen 07 - "Tumhari baatein, yaad hain." */
+/** Screen 07 - "Your memories." */
 @Composable
 fun MemoryScreen() {
     val context = LocalContext.current
@@ -68,10 +68,10 @@ fun MemoryScreen() {
         Text("MAYA", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(8.dp))
         Text("TUMHARI MEMORY", style = MaterialTheme.typography.labelSmall, color = Emerald)
-        Text("Tumhari baatein, yaad hain.", style = MaterialTheme.typography.displaySmall)
+        Text("Your memories.", style = MaterialTheme.typography.displaySmall)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Maya jo baatein seekhti hai, sab yahan hai. Tum jab chaaho badal ya mita sakte ho.",
+            "Everything Maya has learned is here. You can edit or delete it any time.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -106,7 +106,7 @@ fun MemoryScreen() {
                 item {
                     GlassCard {
                         Text(
-                            "Sign in nahi hai - memory ke liye account chahiye.",
+                            "Not signed in. Memory needs an account.",
                             style = MaterialTheme.typography.bodyLarge,
                         )
                     }
@@ -114,10 +114,10 @@ fun MemoryScreen() {
             } else if (shown.isEmpty()) {
                 item {
                     GlassCard {
-                        Text("Abhi kuch yaad nahi.", style = MaterialTheme.typography.titleMedium)
+                        Text("Nothing remembered yet.", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Chat me bolo - 'yaad rakhna, mujhe chai bina cheeni pasand hai' - aur main save kar dungi.",
+                            "Say in chat: 'remember that I like tea without sugar' and I will save it.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -150,7 +150,7 @@ fun MemoryScreen() {
             item {
                 GlassCard {
                     Text(
-                        "Koi bhi secret ya password memory mein store nahi hota. Woh Vault mein safe rehte hain.",
+                        "Memories sync with your account. Keep passwords and secrets in the Vault, not in memories.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
