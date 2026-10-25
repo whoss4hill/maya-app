@@ -118,6 +118,16 @@ if adb shell uiautomator dump /sdcard/anr.xml >/dev/null 2>&1 && adb shell cat /
     adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
     sleep 5
   fi
+  # A "Wait" on a dead-ANR'd process does not revive it: if onboarding is not
+  # visible after the re-foreground, force-stop and cold-relaunch once.
+  adb shell uiautomator dump /sdcard/anr2.xml >/dev/null 2>&1
+  if ! adb shell cat /sdcard/anr2.xml 2>/dev/null | grep -a -q -e 'Get started' -e 'MAYA' -e 'What can I do'; then
+    say "anr_recovery=force-stop+cold-relaunch"
+    adb shell am force-stop $P >/dev/null 2>&1
+    sleep 2
+    adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+    sleep 12
+  fi
 fi
 tap_on "Get started" || fail "onboarding: Get started not found"
 sleep 3
