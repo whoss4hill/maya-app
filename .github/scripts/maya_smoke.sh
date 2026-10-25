@@ -176,21 +176,15 @@ adb exec-out screencap -p > smoke-p8-vault.png
 tap_on "Settings" || say "note: Settings tab not found"
 sleep 3
 adb exec-out screencap -p > smoke-p9-settings.png
-# Settings is a long scroll page: capture the lower regions the first shot cuts off
-adb shell input swipe 540 1900 540 300 600
-sleep 2
-adb exec-out screencap -p > smoke-p9b-settings-mid.png
-adb shell input swipe 540 1900 540 300 600
-sleep 2
-adb exec-out screencap -p > smoke-p9c-settings-bottom.png
-# Wake-word full credential-free path (approved 2026-10-25): scroll Settings
-# back to the TOP (toggle is in the first section - two blind swipes missed it
-# in run 40166318290), toggle on, capture the consent copy, accept Download,
-# then prove: model installed, mic record client active, foreground
-# notification with Pause/Stop, survival across a screen-off/on cycle, and
-# clean shutdown when toggled off. No credentials involved.
+# Wake-word credential-free path, run IMMEDIATELY at Settings open: the toggle
+# sits in the first section and is provably on screen here (smoke-p9, run
+# 40167065033) - a scroll-down-then-scroll-back search missed it when swipe
+# flings raced the dumps. Toggle on, capture the consent copy, accept
+# Download, then prove: pinned model installed, mic record client active,
+# foreground notification with Pause/Stop, survival across a screen-off/on
+# cycle, clean shutdown on toggle off. No credentials involved.
 wx=""; wy=""
-for i in 1 2 3 4; do
+for i in 1 2 3; do
   adb shell uiautomator dump /sdcard/wd.xml >/dev/null 2>&1
   adb shell "cat /sdcard/wd.xml" > /tmp/wd.xml 2>/dev/null
   read wx wy <<EOF2
@@ -290,50 +284,70 @@ EOF2
     tap_on "No" || true
   fi
 else
-  say "note: wake toggle not located after bounded scroll-to-top"
+  cp /tmp/wd.xml smoke-faildump-wake-toggle.xml 2>/dev/null || true
+  say "note: wake toggle not located at Settings open - faildump saved"
 fi
+# Lower Settings regions captured after the wake flow has returned here.
+adb shell input swipe 540 1900 540 300 600
+sleep 2
+adb exec-out screencap -p > smoke-p9b-settings-mid.png
+adb shell input swipe 540 1900 540 300 600
+sleep 2
+adb exec-out screencap -p > smoke-p9c-settings-bottom.png
 
 SEED='kal sabhaar kitne baje hai'
-# Seed and send from the Chat page: its send affordance has an exact
-# content-desc ("Send" once the field is non-blank) and send() clears the
-# field, so a post-send dump match can only come from the thread - never
-# from leftover input text (previous Home-seed + "Mic" tap false positive).
+# Seed and send from the Chat page: send() clears the field, so a post-send
+# dump match can only come from the thread. Typing is verified after EVERY
+# attempt (run 40167065033 dropped all keyevents and the then-fixed "Send"
+# desc hid it): keyevent typing twice, then an input-text fallback. On
+# persistent failure the dump is saved as an artifact and Send is SKIPPED -
+# a blank-field tap takes the mic branch and pollutes later state.
 tap_on "Chat" || say "note: Chat tab not found for seeding"
 sleep 2
-tap_on "Speak or type..." || say "note: chat input not found"
-sleep 2
-# No extra taps here: any tap outside the field drops its focus.
-type_text_keyevents "$SEED"
-sleep 2
-adb shell uiautomator dump /sdcard/maya-ui.xml >/dev/null 2>&1
-if adb exec-out cat /sdcard/maya-ui.xml 2>/dev/null | grep -q 'kal sabhaar kitne baje hai'; then
-  say "seeded_text_present=yes"
-else
-  say "seeded_text_present=NO - retype once"
-  tap_on "Speak or type..." || true
-  sleep 1
-  type_text_keyevents "$SEED"
+seeded=""
+for attempt in 1 2 3; do
+  tap_on "Speak or type..." || say "note: chat input not found (attempt $attempt)"
+  sleep 2
+  if [ "$attempt" -lt 3 ]; then
+    type_text_keyevents "$SEED"
+  else
+    adb shell input text 'kal%ssabhaar%skitne%sbaje%shai'
+  fi
   sleep 2
   adb shell uiautomator dump /sdcard/maya-ui.xml >/dev/null 2>&1
-  adb exec-out cat /sdcard/maya-ui.xml 2>/dev/null | grep -q 'kal sabhaar kitne baje hai' \
-    && say "seeded_text_present=yes(retry)" || say "seeded_text_present=STILL_NO"
+  if adb exec-out cat /sdcard/maya-ui.xml 2>/dev/null | grep -q "$SEED"; then
+    seeded=1
+    say "seeded_text_present=yes (attempt $attempt)"
+    break
+  fi
+  say "seeded_text_present=NO (attempt $attempt)"
+done
+if [ -z "$seeded" ]; then
+  adb exec-out cat /sdcard/maya-ui.xml > smoke-faildump-chat-seed.xml 2>/dev/null || true
+  say "chat_send_skipped=seed_failed - faildump saved"
 fi
 adb exec-out screencap -p > smoke-p10-chat-seeded.png
-tap_on "Send" || say "chat_send_button=NOT_FOUND - send affordance missing after typing"
-sleep 5
+if [ -n "$seeded" ]; then
+  tap_on "Send" || say "chat_send_button=NOT_FOUND - send affordance missing after typing"
+  sleep 5
+fi
 adb exec-out screencap -p > smoke-p10b-chat-after-send.png
 # Source-verified expectation (ChatScreen.send): addUser appends the typed text to
 # the thread BEFORE any backend call, so the message is visible signed-out too.
 # The input field is cleared by send(), so any remaining match is the thread.
-adb shell uiautomator dump /sdcard/maya-chat.xml >/dev/null 2>&1
-CHATXML=$(adb exec-out cat /sdcard/maya-chat.xml 2>/dev/null)
-if echo "$CHATXML" | grep -q 'kal sabhaar kitne baje hai'; then
-  say "chat_send_thread_visible=YES - typed message reached the chat thread"
-  echo "$CHATXML" | grep -q 'Please sign in first' \
-    && say "chat_signedout_reply=present (expected on emulator without an account)" \
-    || say "chat_signedout_reply=absent"
+if [ -n "$seeded" ]; then
+  adb shell uiautomator dump /sdcard/maya-chat.xml >/dev/null 2>&1
+  CHATXML=$(adb exec-out cat /sdcard/maya-chat.xml 2>/dev/null)
+  if echo "$CHATXML" | grep -q "$SEED"; then
+    say "chat_send_thread_visible=YES - typed message reached the chat thread"
+    echo "$CHATXML" | grep -q 'Please sign in first' \
+      && say "chat_signedout_reply=present (expected on emulator without an account)" \
+      || say "chat_signedout_reply=absent"
+  else
+    say "chat_send_thread_visible=NO - typed message did not reach the chat thread"
+  fi
 else
-  say "chat_send_thread_visible=NO - typed message did not reach the chat thread"
+  say "chat_send_thread_visible=SKIPPED - seeding failed"
 fi
 adb exec-out screencap -p > smoke-p10c-chat-thread.png
 tap_on "Home" || say "note: Home tab not found after chat"

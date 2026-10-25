@@ -268,7 +268,7 @@ fun ChatScreen(initialText: String? = null) {
             ) {
                 Icon(
                     if (input.isBlank()) Icons.Filled.Mic else Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
+                    contentDescription = if (input.isBlank()) "Mic" else "Send",
                     tint = MaterialTheme.colorScheme.onPrimary,
                 )
             }
