@@ -215,9 +215,13 @@ type_text_keyevents() {
   done
 }
 SEED='kal sabhaar kitne baje hai'
-tap_on "Home" || say "note: Home tab not found"
+# Seed and send from the Chat page: its send affordance has an exact
+# content-desc ("Send" once the field is non-blank) and send() clears the
+# field, so a post-send dump match can only come from the thread - never
+# from leftover input text (previous Home-seed + "Mic" tap false positive).
+tap_on "Chat" || say "note: Chat tab not found for seeding"
 sleep 2
-tap_on "Type or speak..." || say "note: home input not found"
+tap_on "Speak or type..." || say "note: chat input not found"
 sleep 2
 # No extra taps here: any tap outside the field drops its focus.
 type_text_keyevents "$SEED"
@@ -227,7 +231,7 @@ if adb exec-out cat /sdcard/maya-ui.xml 2>/dev/null | grep -q 'kal sabhaar kitne
   say "seeded_text_present=yes"
 else
   say "seeded_text_present=NO - retype once"
-  tap_on "Type or speak..." || true
+  tap_on "Speak or type..." || true
   sleep 1
   type_text_keyevents "$SEED"
   sleep 2
@@ -236,11 +240,12 @@ else
     && say "seeded_text_present=yes(retry)" || say "seeded_text_present=STILL_NO"
 fi
 adb exec-out screencap -p > smoke-p10-chat-seeded.png
-tap_on "Mic" || say "note: send button not found"
+tap_on "Send" || say "chat_send_button=NOT_FOUND - send affordance missing after typing"
 sleep 5
 adb exec-out screencap -p > smoke-p10b-chat-after-send.png
 # Source-verified expectation (ChatScreen.send): addUser appends the typed text to
 # the thread BEFORE any backend call, so the message is visible signed-out too.
+# The input field is cleared by send(), so any remaining match is the thread.
 adb shell uiautomator dump /sdcard/maya-chat.xml >/dev/null 2>&1
 CHATXML=$(adb exec-out cat /sdcard/maya-chat.xml 2>/dev/null)
 if echo "$CHATXML" | grep -q 'kal sabhaar kitne baje hai'; then
@@ -251,8 +256,6 @@ if echo "$CHATXML" | grep -q 'kal sabhaar kitne baje hai'; then
 else
   say "chat_send_thread_visible=NO - typed message did not reach the chat thread"
 fi
-tap_on "Chat" || say "note: Chat tab not found after send"
-sleep 2
 adb exec-out screencap -p > smoke-p10c-chat-thread.png
 tap_on "Home" || say "note: Home tab not found after chat"
 sleep 2
