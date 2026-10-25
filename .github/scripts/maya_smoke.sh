@@ -183,15 +183,17 @@ adb exec-out screencap -p > smoke-p9b-settings-mid.png
 adb shell input swipe 540 1900 540 300 600
 sleep 2
 adb exec-out screencap -p > smoke-p9c-settings-bottom.png
-# Wake-word consent dialog: tap the toggle, capture the honest consent copy,
-# then dismiss with No - no model download, no mic enabled.
-adb shell input swipe 540 300 540 1900 600
-sleep 2
-adb shell input swipe 540 300 540 1900 600
-sleep 2
-adb shell uiautomator dump /sdcard/wd.xml >/dev/null 2>&1
-adb shell "cat /sdcard/wd.xml" > /tmp/wd.xml 2>/dev/null
-read wx wy <<EOF2
+# Wake-word full credential-free path (approved 2026-10-25): scroll Settings
+# back to the TOP (toggle is in the first section - two blind swipes missed it
+# in run 40166318290), toggle on, capture the consent copy, accept Download,
+# then prove: model installed, mic record client active, foreground
+# notification with Pause/Stop, survival across a screen-off/on cycle, and
+# clean shutdown when toggled off. No credentials involved.
+wx=""; wy=""
+for i in 1 2 3 4; do
+  adb shell uiautomator dump /sdcard/wd.xml >/dev/null 2>&1
+  adb shell "cat /sdcard/wd.xml" > /tmp/wd.xml 2>/dev/null
+  read wx wy <<EOF2
 $(python3 - <<'PY'
 import re
 s = open('/tmp/wd.xml').read()
@@ -207,30 +209,90 @@ for m in re.finditer(r'<node[^>]*>', s):
 PY
 )
 EOF2
+  [ -n "$wx" ] && break
+  adb shell input swipe 540 300 540 1900 600
+  sleep 2
+done
 if [ -n "$wx" ]; then
   adb shell input tap "$wx" "$wy"
   sleep 2
   adb exec-out screencap -p > smoke-p9d-wake-consent.png
-  tap_on "No" || say "note: wake consent dismiss button not found"
-  sleep 1
+  adb shell uiautomator dump /sdcard/wd.xml >/dev/null 2>&1
+  if adb shell cat /sdcard/wd.xml 2>/dev/null | grep -a -q 'Offline model download?'; then
+    say "wake_consent_dialog=shown"
+    tap_on "Download" || say "wake_download_button=NOT_FOUND"
+    # Poll for the pinned model to finish installing (38MB, CI network).
+    ok=""
+    for i in $(seq 1 40); do
+      if adb shell run-as $P ls files/vosk-model/am/final.mdl >/dev/null 2>&1; then ok=1; break; fi
+      sleep 6
+    done
+    if [ -n "$ok" ]; then
+      say "wake_model_installed=YES - pinned Vosk model present after consent download"
+      sleep 4
+      adb shell dumpsys audio 2>/dev/null | grep -a -i -q 'com.maya.agent' \
+        && say "wake_mic_active=YES - audio record client registered for com.maya.agent" \
+        || say "wake_mic_active=NO - no audio record client for com.maya.agent"
+      adb shell input swipe 540 0 540 900 400
+      sleep 2
+      adb exec-out screencap -p > smoke-p9e-wake-notification.png
+      adb shell uiautomator dump /sdcard/wd.xml >/dev/null 2>&1
+      adb shell cat /sdcard/wd.xml 2>/dev/null | grep -a -q 'Pause' \
+        && say "wake_notification=YES - foreground notification with Pause/Stop visible" \
+        || say "wake_notification=NO - Pause/Stop notification not found in shade"
+      adb shell input keyevent KEYCODE_BACK
+      sleep 1
+      # Screen-off survival: service + engine must still be alive after off/on.
+      adb shell input keyevent KEYCODE_POWER
+      sleep 6
+      adb shell input keyevent KEYCODE_POWER
+      sleep 2
+      adb shell input swipe 540 1800 540 600 400
+      sleep 2
+      adb shell dumpsys activity services $P 2>/dev/null | grep -a -q 'MayaForegroundService' \
+        && say "wake_service_survives_screenoff=YES" \
+        || say "wake_service_survives_screenoff=NO - foreground service gone after screen cycle"
+      adb shell dumpsys audio 2>/dev/null | grep -a -i -q 'com.maya.agent' \
+        && say "wake_mic_after_screenoff=YES" || say "wake_mic_after_screenoff=NO"
+      # Cleanup: toggle wake back off, verify the mic client is released.
+      adb shell uiautomator dump /sdcard/wd.xml >/dev/null 2>&1
+      adb shell "cat /sdcard/wd.xml" > /tmp/wd.xml 2>/dev/null
+      read wx2 wy2 <<EOF2
+$(python3 - <<'PY'
+import re
+s = open('/tmp/wd.xml').read()
+for m in re.finditer(r'<node[^>]*>', s):
+    tag = m.group(0)
+    t = re.search(r'text="([^"]*)"', tag)
+    if t and t.group(1).startswith('Wake with'):
+        b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', tag)
+        if b:
+            x1, y1, x2, y2 = map(int, b.groups())
+            print(1000, (y1 + y2) // 2)
+            break
+PY
+)
+EOF2
+      if [ -n "$wx2" ]; then
+        adb shell input tap "$wx2" "$wy2"
+        sleep 4
+        adb shell dumpsys audio 2>/dev/null | grep -a -i -q 'com.maya.agent' \
+          && say "wake_off_clean=NO - mic client still registered after toggle off" \
+          || say "wake_off_clean=YES - mic released on toggle off"
+      else
+        say "note: wake toggle not relocated for cleanup"
+      fi
+    else
+      say "wake_model_installed=NO - model missing after bounded download wait"
+    fi
+  else
+    say "wake_consent_dialog=NOT_SHOWN - unexpected state after toggle tap"
+    tap_on "No" || true
+  fi
 else
-  say "note: wake toggle not located for consent capture"
+  say "note: wake toggle not located after bounded scroll-to-top"
 fi
-# Seeded chat thread: type on the Home bar, same mic button sends when text present.
-# IME-independent entry: one hardware key event per character ('input text' with
-# %20 escapes typed nothing on this image - spaces must be KEYCODE_SPACE).
-type_text_keyevents() {
-  local s="$1" i ch up
-  for ((i=0; i<${#s}; i++)); do
-    ch="${s:$i:1}"
-    case "$ch" in
-      ' ') adb shell input keyevent KEYCODE_SPACE ;;
-      [a-z]) up=$(printf '%s' "$ch" | tr 'a-z' 'A-Z'); adb shell input keyevent "KEYCODE_$up" ;;
-      [0-9]) adb shell input keyevent "KEYCODE_$ch" ;;
-      *) say "type_text: skipping unsupported char '$ch'" ;;
-    esac
-  done
-}
+
 SEED='kal sabhaar kitne baje hai'
 # Seed and send from the Chat page: its send affordance has an exact
 # content-desc ("Send" once the field is non-blank) and send() clears the
