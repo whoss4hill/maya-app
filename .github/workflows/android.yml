@@ -84,8 +84,8 @@ jobs:
           mkdir -p dist
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
           if [ -f /tmp/maya-preview.keystore ]; then
-            KS_SHA=$(keytool -list -v -alias mayapreview -keystore /tmp/maya-preview.keystore -storetype PKCS12 -storepass "$MAYA_KEYSTORE_PASSWORD" 2>/dev/null | grep -m1 'SHA256:' | awk '{print $2}')
-            APK_SHA=$("$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | grep -m1 'SHA-256 digest' | awk '{print $NF}')
+            KS_SHA=$(keytool -list -v -alias mayapreview -keystore /tmp/maya-preview.keystore -storetype PKCS12 -storepass "$MAYA_KEYSTORE_PASSWORD" 2>/dev/null | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+            APK_SHA=$("$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | grep -m1 'SHA-256 digest' | awk '{print $NF}' | tr -d ':' | tr '[:upper:]' '[:lower:]')
             echo "keystore-cert-sha256=$KS_SHA"
             echo "apk-cert-sha256=$APK_SHA"
             if [ -z "$KS_SHA" ] || [ "$KS_SHA" != "$APK_SHA" ]; then
