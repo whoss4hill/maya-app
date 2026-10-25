@@ -78,9 +78,24 @@ jobs:
 
       - name: Verify APK signature and copy download
         shell: bash
+        env:
+          MAYA_KEYSTORE_PASSWORD: ${{ secrets.MAYA_KEYSTORE_PASSWORD }}
         run: |
           mkdir -p dist
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
+          if [ -f /tmp/maya-preview.keystore ]; then
+            KS_SHA=$(keytool -list -v -alias mayapreview -keystore /tmp/maya-preview.keystore -storetype PKCS12 -storepass "$MAYA_KEYSTORE_PASSWORD" 2>/dev/null | grep -m1 'SHA256:' | awk '{print $2}')
+            APK_SHA=$("$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | grep -m1 'SHA-256 digest' | awk '{print $NF}')
+            echo "keystore-cert-sha256=$KS_SHA"
+            echo "apk-cert-sha256=$APK_SHA"
+            if [ -z "$KS_SHA" ] || [ "$KS_SHA" != "$APK_SHA" ]; then
+              echo "SIGNER MISMATCH: APK is not signed with the dedicated Maya preview key"
+              exit 1
+            fi
+            echo "signer_match=YES - APK signed with the dedicated Maya preview key"
+          else
+            echo "signer_match=SKIPPED - no stable keystore in this run (debug signing fallback; NOT a deliverable candidate)"
+          fi
           cp app/build/outputs/apk/debug/app-debug.apk dist/Maya-preview.apk
           (cd dist && sha256sum Maya-preview.apk > Maya-preview.apk.sha256)
 
