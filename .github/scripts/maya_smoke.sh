@@ -193,8 +193,9 @@ import re
 s = open('/tmp/wd.xml').read()
 for m in re.finditer(r'<node[^>]*>', s):
     tag = m.group(0)
-    t = re.search(r'text="([^"]*)"', tag)
-    if t and t.group(1).startswith('Wake with'):
+    t = re.search(r"text=(\"([^\"]*)\"|'([^']*)')", tag)
+    txt = t.group(2) if t and t.group(2) is not None else (t.group(3) if t else None)
+    if txt and txt.startswith('Wake with'):
         b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', tag)
         if b:
             x1, y1, x2, y2 = map(int, b.groups())
@@ -257,8 +258,9 @@ import re
 s = open('/tmp/wd.xml').read()
 for m in re.finditer(r'<node[^>]*>', s):
     tag = m.group(0)
-    t = re.search(r'text="([^"]*)"', tag)
-    if t and t.group(1).startswith('Wake with'):
+    t = re.search(r"text=(\"([^\"]*)\"|'([^']*)')", tag)
+    txt = t.group(2) if t and t.group(2) is not None else (t.group(3) if t else None)
+    if txt and txt.startswith('Wake with'):
         b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', tag)
         if b:
             x1, y1, x2, y2 = map(int, b.groups())
