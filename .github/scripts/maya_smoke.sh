@@ -104,30 +104,37 @@ EOF2
   return 0
 }
 
+# Let the emulator's system launcher finish initializing before Maya takes
+# the foreground: runs 40163689772 + 40165084097 both ANR'd the launcher
+# ("Input dispatching timed out (no focused window)") when Maya launched
+# during launcher init; its modal dialog then blocked every tap.
+sleep 20
 adb shell am force-stop $P
 adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 sleep 8
 adb exec-out screencap -p > smoke-p1-welcome.png
 # A system ANR dialog (e.g. "Pixel Launcher isn't responding") can steal the
 # foreground for the whole run (run 40107620068: every onboarding tap missed).
-# Dismiss it and re-foreground the app before the first onboarding tap.
-if adb shell uiautomator dump /sdcard/anr.xml >/dev/null 2>&1 && adb shell cat /sdcard/anr.xml 2>/dev/null | grep -a -q "isn't responding"; then
-  if tap_on "Wait"; then
-    say "anr_dialog_dismissed=Wait"
-    sleep 3
-    adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
-    sleep 5
-  fi
-  # A "Wait" on a dead-ANR'd process does not revive it: if onboarding is not
-  # visible after the re-foreground, force-stop and cold-relaunch once.
-  adb shell uiautomator dump /sdcard/anr2.xml >/dev/null 2>&1
-  if ! adb shell cat /sdcard/anr2.xml 2>/dev/null | grep -a -q -e 'Get started' -e 'MAYA' -e 'What can I do'; then
-    say "anr_recovery=force-stop+cold-relaunch"
-    adb shell am force-stop $P >/dev/null 2>&1
-    sleep 2
-    adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
-    sleep 12
-  fi
+# While the modal dialog is up, uiautomator sees ONLY the dialog - never the
+# app behind it - so drain the dialog first (bounded), then judge the app.
+for i in 1 2 3 4 5; do
+  adb shell uiautomator dump /sdcard/anr.xml >/dev/null 2>&1
+  adb shell cat /sdcard/anr.xml 2>/dev/null | grep -a -q "isn't responding" || break
+  tap_on "Wait" && say "anr_dialog_dismissed=Wait (drain $i)"
+  sleep 6
+done
+adb shell uiautomator dump /sdcard/anr2.xml >/dev/null 2>&1
+if adb shell cat /sdcard/anr2.xml 2>/dev/null | grep -a -q "isn't responding"; then
+  say "anr_dialog=PERSISTED after bounded drain - continuing anyway (dialog may clear mid-run)"
+fi
+# Only a genuinely unrendered app (dialog gone, no app markers) gets a cold relaunch.
+if ! adb shell cat /sdcard/anr2.xml 2>/dev/null | grep -a -q "isn't responding" \
+  && ! adb shell cat /sdcard/anr2.xml 2>/dev/null | grep -a -q -e 'Get started' -e 'MAYA' -e 'What can I do'; then
+  say "anr_recovery=force-stop+cold-relaunch"
+  adb shell am force-stop $P >/dev/null 2>&1
+  sleep 2
+  adb shell monkey -p $P -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+  sleep 12
 fi
 tap_on "Get started" || fail "onboarding: Get started not found"
 sleep 3
