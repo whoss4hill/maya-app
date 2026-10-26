@@ -28,8 +28,8 @@ class VoiceCallTest {
     }
     @Test fun `confirmed call is launched and never claimed connected`() {
         val d = deps(); val c = asked(); VoiceCall.place("9876543210", d, c, { 1000 }); pendingDone!!.invoke()
-        c.onOwnerTranscript("haan", 2000)
-        val r = VoiceCall.confirmPending(d, c, 2500)
+        c.onOwnerTranscript("haan call lagao", 3000)
+        val r = VoiceCall.confirmPending(d, c, 3500)
         assertEquals("intent_launched", r.status); assertTrue(r.text.contains("cannot confirm"))
     }
     @Test fun `ambiguous contact never dials`() {
@@ -49,8 +49,8 @@ class VoiceCallTest {
     }
     @Test fun `os refusal is reported as blocked`() {
         val d = deps(dialOk = false); val c = asked(); VoiceCall.place("9876543210", d, c, { 1000 }); pendingDone!!.invoke()
-        c.onOwnerTranscript("haan", 2000)
-        assertEquals("blocked", VoiceCall.confirmPending(d, c, 2500).status)
+        c.onOwnerTranscript("haan call lagao", 3000)
+        assertEquals("blocked", VoiceCall.confirmPending(d, c, 3500).status)
     }
     @Test fun `emergency number only opens dialer`() {
         assertTrue(DialCommand.isEmergency("112")); assertFalse(DialCommand.isEmergency("9876543210"))
@@ -65,10 +65,10 @@ class VoiceCallTest {
         pendingDone!!.invoke()                                                  // TTS done callback -> readback finished at t=1000
         assertEquals("no_answer", VoiceCall.confirmPending(d, c, 3000).status)  // model invents a yes: nothing heard
         assertTrue(dialed.isEmpty())
-        c.onOwnerTranscript("haan kar do", 3000)
-        assertEquals("intent_launched", VoiceCall.confirmPending(d, c, 3500).status)
+        c.onOwnerTranscript("haan call kar do", 3000 + CallConfirmation.ECHO_GUARD_MS)
+        assertEquals("intent_launched", VoiceCall.confirmPending(d, c, 5000).status)
         assertEquals(listOf("9876543210"), dialed)
-        assertEquals("no_pending", VoiceCall.confirmPending(d, c, 4000).status) // one-shot, replay refused
+        assertEquals("no_pending", VoiceCall.confirmPending(d, c, 6000).status) // one-shot, replay refused
         assertEquals(1, dialed.size)
     }
     @Test fun `tts failure fails closed to dialer only`() {
@@ -82,16 +82,16 @@ class VoiceCallTest {
     @Test fun `a fresh call request replaces an older pending and its yes`() {
         val d = deps(); val c = asked()
         VoiceCall.place("1111111111", d, c, { 1000 }); pendingDone!!.invoke()
-        c.onOwnerTranscript("haan", 2000)
-        VoiceCall.place("2222222222", d, c, { 3000 })        // different target: old yes is gone
-        assertEquals("wait", VoiceCall.confirmPending(d, c, 3100).status)
+        c.onOwnerTranscript("haan call lagao", 3000)
+        VoiceCall.place("2222222222", d, c, { 4000 })        // different target: old yes is gone
+        assertEquals("wait", VoiceCall.confirmPending(d, c, 4100).status)
         assertTrue(dialed.isEmpty())
     }
     @Test fun `ambiguous or silent owner never reaches ACTION_CALL`() {
         val d = deps(); val c = asked(); VoiceCall.place("9876543210", d, c, { 1000 }); pendingDone!!.invoke()
         assertEquals("no_answer", VoiceCall.confirmPending(d, c, 2500).status)
-        c.onOwnerTranscript("hmm", 2600)
-        assertEquals("unclear_answer", VoiceCall.confirmPending(d, c, 2700).status)
+        c.onOwnerTranscript("hmm", 2600 + CallConfirmation.ECHO_GUARD_MS)
+        assertEquals("unclear_answer", VoiceCall.confirmPending(d, c, 4200).status)
         assertTrue(dialed.isEmpty())
     }
 }

@@ -8,8 +8,8 @@ package com.maya.agent.calls
  * itself (Android TTS) and only the TTS "done" callback marks the read-back finished. Flow:
  *  1. begin(number): pending target bound to this exact number, read-back not yet done.
  *  2. onReadbackSpoken(): TTS finished speaking that number. Earlier owner speech is discarded, and speech in the
- *     first 600 ms afterwards is ignored (echo of the app's own voice).
- *  3. Only owner speech transcribed after that counts. confirm() evaluates it (yes word, no negation, short).
+ *     first 1.5 s afterwards is ignored (echo of the app's own voice).
+ *  3. Only owner speech transcribed after that counts. confirm() evaluates it (call phrase + yes/action word, no negation, short).
  *     One-shot: yes or no consumes it.
  *  4. Expires 60 s after the read-back; a new begin()/call request replaces it; session reset clears it.
  * Also records recent owner speech so a call tool call is only honoured when the owner actually asked for a call
@@ -77,7 +77,7 @@ class CallConfirmation {
     companion object {
         const val EXPIRY_MS = 60_000L
         const val ASK_WINDOW_MS = 30_000L
-        const val ECHO_GUARD_MS = 600L
+        const val ECHO_GUARD_MS = 1500L
         private val callWords = listOf("call", "dial", "phone", "fone", "ring ", "laga", "lagao", "कॉल", "काल", "फोन", "फ़ोन", "लगा")
         private val yes = setOf("haan", "han", "ha", "haa", "haanji", "yes", "yeah", "yep", "ok", "okay", "theek", "thik", "sahi", "bilkul",
             "confirm", "confirmed", "kardo", "lagado", "lagao", "krdo", "हाँ", "हां", "हा", "ठीक", "सही", "बिल्कुल", "ओके")
@@ -85,13 +85,18 @@ class CallConfirmation {
         private val no = setOf("nahi", "nahin", "nhi", "na", "no", "nope", "mat", "ruko", "ruk", "stop", "cancel", "wait", "galat", "wrong",
             "dont", "don't", "nai", "नहीं", "नही", "मत", "रुको", "रुक", "गलत", "नाही")
 
+        private val callWord = listOf("call", "कॉल", "काल", "phone", "fone", "dial", "laga", "लगा")
+        private val action = setOf("laga", "lagao", "lagado", "lagaiye", "karo", "kar", "kardo", "krdo", "karna", "do", "place", "ahead", "लगाओ", "लगा", "करो", "कर")
+
+        /** YES needs an explicit call phrase tied to the action ("haan call lagao", "yes call", "call karo"), not a bare "haan". */
         fun judge(text: String): Verdict {
             val norm = text.lowercase().replace(Regex("[^\\p{L}\\p{M}\\p{N}' ]"), " ").replace(Regex("\\s+"), " ").trim()
             val words = norm.split(' ').filter { it.isNotEmpty() }
             if (words.isEmpty() || words.size > 8) return Verdict.UNCLEAR
             if (words.any { it in no } || norm.contains("ek minute") || norm.contains("ek min")) return Verdict.NO
-            if (words.any { it in yes } || yesPairs.any { norm.contains(it) }) return Verdict.YES
-            return Verdict.UNCLEAR
+            val hasCall = callWord.any { norm.contains(it) }
+            val hasYesOrAction = words.any { it in yes || it in action } || yesPairs.any { norm.contains(it) }
+            return if (hasCall && hasYesOrAction) Verdict.YES else Verdict.UNCLEAR
         }
     }
 }

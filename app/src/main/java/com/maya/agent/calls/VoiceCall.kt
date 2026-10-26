@@ -26,7 +26,7 @@ object VoiceCall {
             CallConfirmation.Outcome.Expired -> Result("expired", "The confirmation expired. Nothing was dialled. If the owner still wants the call, start again.")
             CallConfirmation.Outcome.NoAnswerHeard -> Result("no_answer", "The app has not heard an answer from the owner after the read-back. Nothing was dialled. Ask again and wait; do not assume yes.")
             CallConfirmation.Outcome.Denied -> Result("denied", "The owner said no. The call is cancelled and nothing was dialled.")
-            CallConfirmation.Outcome.Unclear -> Result("unclear_answer", "The owner's answer was not a clear yes. Nothing was dialled. Ask again: should I call, yes or no?")
+            CallConfirmation.Outcome.Unclear -> Result("unclear_answer", "The owner's answer was not a clear yes. Nothing was dialled. Ask again and tell them to say the confirmation phrase, for example haan call lagao.")
         }
 
     fun place(target: String, deps: PhoneCommand.Deps, conf: CallConfirmation = confirmation, now: () -> Long = { System.currentTimeMillis() }): Result {
@@ -68,12 +68,12 @@ object VoiceCall {
         conf.begin(number, name)
         val spoken = number.filter { it.isDigit() || it == '+' }.map { if (it == '+') "plus" else it.toString() }.joinToString(" ")
         val lead = if (name.isBlank()) "Number" else name
-        val ok = deps.speakReadback("$lead. $spoken. Bolo, call lagaun?") { conf.onReadbackSpoken(now()) }
+        val ok = deps.speakReadback("$lead. Confirm karne ke liye bolo, haan call lagao. Number $spoken") { conf.onReadbackSpoken(now()) }
         if (!ok) {
             conf.reset()
             return if (deps.openDialer(number)) Result("dialer_opened", "The app could not read the number back aloud, so it did not place the call. It opened the dialer with the number; the owner must press Call.")
             else Result("blocked", "The app could not read the number back aloud. Nothing was dialled.")
         }
-        return Result("needs_confirmation", "Nothing was dialled yet. The APP is now reading the target number aloud itself: say nothing about the number and do not read it yourself. Wait silently for the owner's own answer, then call confirm_pending_call (no arguments). The app checks their actual words; you cannot confirm for them. If they name a different person or number, start over with call_contact.")
+        return Result("needs_confirmation", "Nothing was dialled yet. The APP is now reading the target number aloud itself: say nothing about the number and do not read it yourself. Wait silently for the owner's own spoken confirmation phrase (e.g. "haan call lagao"; a bare "haan" does not count), then call confirm_pending_call (no arguments). The app checks their actual words; you cannot confirm for them. If they name a different person or number, start over with call_contact.")
     }
 }
