@@ -55,6 +55,10 @@ class CallConfirmation {
         if (p.readbackDoneAt >= 0 && now >= p.readbackDoneAt + ECHO_GUARD_MS) p.heard.append(' ').append(text)
     }
 
+    /** Owner speech heard in the last 30 s (empty when transcription is not working). */
+    @Synchronized fun recentOwnerSpeech(now: Long): String =
+        recent.filter { now - it.first in 0..ASK_WINDOW_MS }.joinToString(" ") { it.second }
+
     /** True when owner speech in the last 30 s contains a call request word (transcription must be working). */
     @Synchronized fun ownerAskedForCall(now: Long): Boolean {
         val txt = recent.filter { now - it.first <= ASK_WINDOW_MS }.joinToString(" ") { it.second }.lowercase()

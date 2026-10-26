@@ -39,39 +39,11 @@ object LiveToolBridge {
       {"name":"call_contact","description":"Place a phone call ONLY when the owner has just clearly asked to call someone. target is a contact name or a phone number exactly as the owner said it. If the result says ambiguous, unclear or not found, ask the owner; never guess a number. A launched call is not a connected call.",
        "parameters":{"type":"OBJECT","properties":{"target":{"type":"STRING"}},"required":["target"]}},
       {"name":"confirm_pending_call","description":"Only after call_contact said needs_confirmation, you read the number back, and the owner answered out loud. Takes no arguments: the app itself checks what the owner actually said. Never call it before the owner answered.",
-       "parameters":{"type":"OBJECT","properties":{}}}
+       "parameters":{"type":"OBJECT","properties":{}}},
+      {"name":"get_weather","description":"Current weather and today's forecast for the phone's CURRENT location, only when the owner asks. Weather for any other named place is not supported: if the owner names a place pass it in place and the tool will say unsupported. Tell the owner when it was checked.",
+       "parameters":{"type":"OBJECT","properties":{"place":{"type":"STRING"}}}}
     ]"""
 
-    private fun timeAndWeather(context: Context): String {
-        val fmt = java.text.SimpleDateFormat("EEEE, d MMMM yyyy, h:mm:ss a", java.util.Locale("en", "IN"))
-        val ist = fmt.format(java.util.Date()) // device timezone, not forced IST
-        var weather = "Weather data unavailable (location permission might be needed)."
-        try {
-            val granted = androidx.core.content.ContextCompat.checkSelfPermission(
-                context, android.Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            if (granted) {
-                val lm = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
-                val loc = runCatching {
-                    lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
-                        ?: lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
-                }.getOrNull()
-                if (loc != null) {
-                    val url = "https://api.open-meteo.com/v1/forecast?latitude=" + loc.latitude +
-                        "&longitude=" + loc.longitude +
-                        "&current_weather=true&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto"
-                    val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
-                        connectTimeout = 8000; readTimeout = 8000
-                    }
-                    weather = conn.inputStream.bufferedReader().use { it.readText() }
-                    conn.disconnect()
-                }
-            }
-        } catch (e: Exception) {
-            weather = "Could not fetch weather data"
-        }
-        return "Current date & time: " + ist + ". Weather Data: " + weather
-    }
 
     /** Pure: function-call args JSON -> tool-result JSON string. Testable without a device (no Context). */
     fun callContactResult(argsJson: String, deps: PhoneCommand.Deps, conf: com.maya.agent.calls.CallConfirmation = VoiceCall.confirmation): String {
@@ -120,14 +92,6 @@ object LiveToolBridge {
 
     /** Execute and capture the spoken line as the tool result for the model. */
     suspend fun execute(context: Context, call: LiveProtocol.ServerEvent.FunctionCall): String {
-        // Time/weather mirrors Zoya's getDateTimeAndWeather: free Open-Meteo (no key)
-        // + device location; network off the main thread.
-        if (call.name == "get_date_time_and_weather") {
-            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                timeAndWeather(context)
-            }
-            return JsonObject().apply { addProperty("result", result) }.toString()
-        }
         if (call.name == "call_contact") {
             return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { callContactResult(call.argsJson, callDeps(context)) }
         }
@@ -136,6 +100,7 @@ object LiveToolBridge {
                 JsonObject().apply { addProperty("result", VoiceCall.confirmPending(callDeps(context)).text) }.toString()
             }
         }
+        if (call.name == "get_weather") return WeatherTool.run(context, call.argsJson, VoiceCall.confirmation.recentOwnerSpeech(System.currentTimeMillis()))
         val intent = toIntent(call)
             ?: return "{\"result\":\"Ye action voice me available nahi hai\"}"
         var spoken: String? = null
