@@ -37,6 +37,7 @@ object Routes {
     const val PERMISSIONS_1 = "permissions1"
     const val PERMISSIONS_2 = "permissions2"
     const val SIGNIN = "signin"
+    const val RESET_PASSWORD = "reset_password"
     const val HOME = "home"
     const val CHAT = "chat"
     const val CHAT_WITH_TEXT = "chat/{text}"
@@ -117,6 +118,12 @@ class MainActivity : FragmentActivity() {
                             SignInScreen(
                                 onSignedIn = { nav.navigate(Routes.HOME) { popUpTo(0) } },
                                 onBack = { nav.popBackStack() },
+                            )
+                        }
+                        composable(Routes.RESET_PASSWORD) {
+                            com.maya.agent.ui.screens.ResetPasswordScreen(
+                                onDone = { nav.navigate(Routes.SIGNIN) { popUpTo(0) } },
+                                onCancel = { nav.navigate(Routes.SIGNIN) { popUpTo(0) } },
                             )
                         }
                         composable(Routes.HOME) {
@@ -219,8 +226,12 @@ class MainActivity : FragmentActivity() {
     private fun handleAuthRedirect(intent: Intent?) {
         val uri = intent?.data ?: return
         if (uri.scheme == "maya" && uri.host == "auth") {
-            MayaApp.from(this).auth.handleAuthRedirect(uri)
-            navController?.navigate(Routes.HOME) { popUpTo(0) }
+            when (MayaApp.from(this).auth.handleAuthRedirect(uri)) {
+                com.maya.agent.data.auth.AuthRepository.Redirect.SIGNED_IN -> navController?.navigate(Routes.HOME) { popUpTo(0) }
+                com.maya.agent.data.auth.AuthRepository.Redirect.RECOVERY -> navController?.navigate(Routes.RESET_PASSWORD) { popUpTo(0) }
+                com.maya.agent.data.auth.AuthRepository.Redirect.LINK_ERROR -> navController?.navigate(Routes.SIGNIN) { popUpTo(0) }
+                com.maya.agent.data.auth.AuthRepository.Redirect.IGNORED -> {}
+            }
         }
     }
 

@@ -28,6 +28,11 @@ class AuthRepository(
     private val anonKey: String = BuildConfig.SUPABASE_ANON_KEY,
 ) {
 
+    companion object {
+        /** Must be in the Supabase project's Redirect URLs allow-list (owner-verified), else Supabase falls back to its Site URL. */
+        const val RECOVERY_REDIRECT = "maya://auth"
+    }
+
     private val appContext = context.applicationContext
 
     private val http = httpClient ?: OkHttpClient.Builder()
@@ -71,7 +76,7 @@ class AuthRepository(
                 val body = json.toString()
                     .toRequestBody("application/json; charset=utf-8".toMediaType())
                 val request = Request.Builder()
-                    .url("$supabaseUrl/auth/v1/recover")
+                    .url("$supabaseUrl/auth/v1/recover?redirect_to=" + java.net.URLEncoder.encode(RECOVERY_REDIRECT, "UTF-8"))
                     .addHeader("apikey", anonKey)
                     .post(body)
                     .build()
@@ -131,20 +136,68 @@ class AuthRepository(
         return Intent(Intent.ACTION_VIEW, Uri.parse(url))
     }
 
-    /** Called from MainActivity when the maya://auth deep link comes back. */
-    fun handleAuthRedirect(uri: Uri) {
-        // Supabase returns tokens in the URL fragment.
-        val fragment = uri.fragment ?: return
-        val params = fragment.split("&").mapNotNull {
-            val i = it.indexOf('=')
-            if (i > 0) it.substring(0, i) to it.substring(i + 1) else null
-        }.toMap()
-        val token = params["access_token"] ?: return
-        prefs.edit()
-            .putString("access_token", token)
-            .putString("refresh_token", params["refresh_token"])
-            .putLong("expires_at", refresher.expiryFrom(params["expires_at"]?.toLongOrNull(), params["expires_in"]?.toLongOrNull()))
-            .apply()
+    enum class Redirect { SIGNED_IN, RECOVERY, LINK_ERROR, IGNORED }
+
+    /** In-memory only: a password-recovery token is never stored as a signed-in session. */
+    private class RecoverySession(val token: String, val expiresAtMs: Long)
+    @Volatile private var recovery: RecoverySession? = null
+    @Volatile var linkError: String? = null; private set
+    val recoveryPending: Boolean get() = recovery?.let { it.expiresAtMs > System.currentTimeMillis() } == true
+    fun cancelRecovery() { recovery = null }
+    fun consumeLinkError(): String? = linkError.also { linkError = null }
+
+    /** Called from MainActivity when the maya://auth deep link comes back (Google sign-in or password recovery). */
+    fun handleAuthRedirect(uri: Uri): Redirect {
+        return when (val o = RecoveryLink.parse(uri.fragment, uri.query)) {
+            is RecoveryLink.Outcome.Recovery -> { recovery = RecoverySession(o.accessToken, o.expiresAtMs); linkError = null; Redirect.RECOVERY }
+            is RecoveryLink.Outcome.LinkError -> { recovery = null; linkError = o.message; Redirect.LINK_ERROR }
+            RecoveryLink.Outcome.Ignore -> Redirect.IGNORED
+            is RecoveryLink.Outcome.SignIn -> {
+                val params = o.params
+                prefs.edit()
+                    .putString("access_token", params["access_token"])
+                    .putString("refresh_token", params["refresh_token"])
+                    .putLong("expires_at", refresher.expiryFrom(params["expires_at"]?.toLongOrNull(), params["expires_in"]?.toLongOrNull()))
+                    .apply()
+                Redirect.SIGNED_IN
+            }
+        }
+    }
+
+    /** Confirms the recovery token is a live session and returns whose account it is (masked), or a failure. */
+    suspend fun verifyRecoverySession(): kotlin.Result<String> = withContext(Dispatchers.IO) {
+        val r = recovery
+        if (r == null || r.expiresAtMs <= System.currentTimeMillis()) return@withContext kotlin.Result.failure(IllegalStateException("expired"))
+        try {
+            val req = Request.Builder().url("$supabaseUrl/auth/v1/user").addHeader("apikey", anonKey)
+                .addHeader("Authorization", "Bearer " + r.token).get().build()
+            http.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext kotlin.Result.failure(IllegalStateException("rejected"))
+                val email = JsonParser.parseString(resp.body?.string() ?: "{}").asJsonObject.get("email")?.takeIf { !it.isJsonNull }?.asString
+                if (email.isNullOrBlank()) kotlin.Result.failure(IllegalStateException("no email")) else kotlin.Result.success(RecoveryLink.maskEmail(email))
+            }
+        } catch (e: Exception) { kotlin.Result.failure(e) }
+    }
+
+    /** Sets the new password. Success only when Supabase answers 2xx; the recovery token is then dropped. */
+    suspend fun setNewPassword(newPassword: String): Result = withContext(Dispatchers.IO) {
+        val r = recovery
+        if (r == null || r.expiresAtMs <= System.currentTimeMillis()) { recovery = null; return@withContext Result.Failure("The reset link expired. Ask for a new one.") }
+        if (newPassword.length < RecoveryLink.MIN_PASSWORD) return@withContext Result.Failure("Use at least ${RecoveryLink.MIN_PASSWORD} characters.")
+        try {
+            val body = com.google.gson.JsonObject().apply { addProperty("password", newPassword) }.toString()
+                .toRequestBody("application/json; charset=utf-8".toMediaType())
+            val req = Request.Builder().url("$supabaseUrl/auth/v1/user").addHeader("apikey", anonKey)
+                .addHeader("Authorization", "Bearer " + r.token).put(body).build()
+            http.newCall(req).execute().use { resp ->
+                when {
+                    resp.isSuccessful -> { recovery = null; Result.Success }
+                    resp.code == 401 || resp.code == 403 -> { recovery = null; Result.Failure("The reset link expired. Ask for a new one.") }
+                    resp.code == 422 -> Result.Failure("That password was not accepted. Try a different, longer one.")
+                    else -> Result.Failure("Could not update the password (${resp.code}). Try once more.")
+                }
+            }
+        } catch (e: Exception) { Result.Failure("Network error. Try once more.") }
     }
 
     private val store = object : TokenStore {
@@ -162,5 +215,5 @@ class AuthRepository(
     /** Access token valid for the next minute, refreshed when needed (see TokenRefresher). */
     suspend fun validAccessToken(): String? = withContext(Dispatchers.IO) { refresher.validAccessToken() }
 
-    fun signOut() = prefs.edit().clear().apply()
+    fun signOut() { recovery = null; prefs.edit().clear().apply() }
 }

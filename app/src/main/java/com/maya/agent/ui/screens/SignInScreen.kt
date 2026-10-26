@@ -44,6 +44,7 @@ fun SignInScreen(onSignedIn: () -> Unit, onBack: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var resetSentTo by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { auth.consumeLinkError()?.let { error = it } }
 
     fun sendReset() {
         if (busy) return
