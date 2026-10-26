@@ -59,14 +59,14 @@ class LiveToolBridgeTest {
     fun `declarations json is valid and names match mapping`() {
         val decls = JsonParser.parseString(LiveToolBridge.DECLARATIONS_JSON).asJsonArray
         val names = decls.map { it.asJsonObject.get("name").asString }.toSet()
-        assertEquals(setOf("set_timer","set_alarm","add_to_cart","open_app","tap_text","go_back","go_home","call_contact","confirm_pending_call"), names)
+        assertEquals(setOf("set_timer","set_alarm","add_to_cart","open_app","tap_text","go_back","go_home","call_contact","confirm_pending_call","draft_sms"), names)
     }
 
     @Test
     fun `setup embeds tools when provided`() {
         val json = LiveProtocol.buildSetup("m", "s", "Kore", toolsJson = LiveToolBridge.DECLARATIONS_JSON)
         val tools = JsonParser.parseString(json).asJsonObject.getAsJsonObject("setup").getAsJsonArray("tools")
-        assertTrue(tools[0].asJsonObject.getAsJsonArray("functionDeclarations").size() == 9)
+        assertTrue(tools[0].asJsonObject.getAsJsonArray("functionDeclarations").size() == 10)
         val bare = LiveProtocol.buildSetup("m", "s", "Kore")
         assertTrue(!JsonParser.parseString(bare).asJsonObject.getAsJsonObject("setup").has("tools"))
         val withSearch = JsonParser.parseString(

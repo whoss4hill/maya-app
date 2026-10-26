@@ -39,7 +39,9 @@ object LiveToolBridge {
       {"name":"call_contact","description":"Place a phone call ONLY when the owner has just clearly asked to call someone. target is a contact name or a phone number exactly as the owner said it. If the result says ambiguous, unclear or not found, ask the owner; never guess a number. A launched call is not a connected call.",
        "parameters":{"type":"OBJECT","properties":{"target":{"type":"STRING"}},"required":["target"]}},
       {"name":"confirm_pending_call","description":"Only after call_contact said needs_confirmation, you read the number back, and the owner answered out loud. Takes no arguments: the app itself checks what the owner actually said. Never call it before the owner answered.",
-       "parameters":{"type":"OBJECT","properties":{}}}
+       "parameters":{"type":"OBJECT","properties":{}}},
+      {"name":"draft_sms","description":"Prepare a text message draft ONLY when the owner just asked to message someone. Opens the phone's SMS composer pre-filled; it never sends - the owner reads it and presses Send. target is the contact name or number the owner said; body is what the owner asked to say, in their words. Never choose a recipient or invent content.",
+       "parameters":{"type":"OBJECT","properties":{"target":{"type":"STRING"},"body":{"type":"STRING"}},"required":["target","body"]}}
     ]"""
 
     private fun timeAndWeather(context: Context): String {
@@ -79,6 +81,17 @@ object LiveToolBridge {
         val target = args.get("target")?.takeIf { it.isJsonPrimitive }?.asString
         val res = if (target.isNullOrBlank()) VoiceCall.Result("unclear", "No target given. Nothing was dialled.")
             else VoiceCall.place(target, deps, conf)
+        return JsonObject().apply { addProperty("result", res.text) }.toString()
+    }
+
+    internal fun smsDraftResult(context: Context, argsJson: String, ownerSpeech: String): String {
+        val args = try { JsonParser.parseString(argsJson).asJsonObject } catch (e: Exception) { JsonObject() }
+        fun a(k: String) = args.get(k)?.takeIf { it.isJsonPrimitive }?.asString ?: ""
+        val res = com.maya.agent.calls.SmsDraft.prepare(a("target"), a("body"), ownerSpeech, callDeps(context),
+            looksSecret = { LiveSecretGuard.looksLikeSecret(it) },
+            openComposer = { n, b -> try {
+                context.startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("smsto:" + android.net.Uri.encode(n)))
+                    .putExtra("sms_body", b).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (e: Exception) { false } })
         return JsonObject().apply { addProperty("result", res.text) }.toString()
     }
 
@@ -127,6 +140,11 @@ object LiveToolBridge {
                 timeAndWeather(context)
             }
             return JsonObject().apply { addProperty("result", result) }.toString()
+        }
+        if (call.name == "draft_sms") {
+            return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                smsDraftResult(context, call.argsJson, VoiceCall.confirmation.recentOwnerSpeech(System.currentTimeMillis()))
+            }
         }
         if (call.name == "call_contact") {
             return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { callContactResult(call.argsJson, callDeps(context)) }
