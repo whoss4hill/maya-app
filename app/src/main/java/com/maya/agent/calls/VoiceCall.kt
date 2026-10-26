@@ -74,6 +74,6 @@ object VoiceCall {
             return if (deps.openDialer(number)) Result("dialer_opened", "The app could not read the number back aloud, so it did not place the call. It opened the dialer with the number; the owner must press Call.")
             else Result("blocked", "The app could not read the number back aloud. Nothing was dialled.")
         }
-        return Result("needs_confirmation", "Nothing was dialled yet. The APP is now reading the target number aloud itself: say nothing about the number and do not read it yourself. Wait silently for the owner's own spoken confirmation phrase (e.g. "haan call lagao"; a bare "haan" does not count), then call confirm_pending_call (no arguments). The app checks their actual words; you cannot confirm for them. If they name a different person or number, start over with call_contact.")
+        return Result("needs_confirmation", "Nothing was dialled yet. The APP is now reading the target number aloud itself: say nothing about the number and do not read it yourself. Wait silently for the owner's own spoken confirmation phrase (e.g. \"haan call lagao\"; a bare \"haan\" does not count), then call confirm_pending_call (no arguments). The app checks their actual words; you cannot confirm for them. If they name a different person or number, start over with call_contact.")
     }
 }
