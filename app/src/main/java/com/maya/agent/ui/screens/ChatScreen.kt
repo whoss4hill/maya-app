@@ -174,7 +174,7 @@ fun ChatScreen(initialText: String? = null) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            StatusChip(if (thinking) "Thinking..." else "Online", active = !thinking)
+            StatusChip(if (thinking) "Thinking..." else "Chat", active = !thinking)
         }
         Spacer(Modifier.height(8.dp))
         LazyColumn(
