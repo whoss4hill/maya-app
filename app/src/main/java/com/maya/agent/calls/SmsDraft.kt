@@ -31,6 +31,7 @@ object SmsDraft {
     ): Result {
         val t = target.trim(); val b = body.trim()
         if (t.isEmpty() || b.isEmpty()) return Result("unclear", "Need both who the message is for and what it says. Nothing was drafted or sent.")
+        if (t.none { it.isLetter() } && DialCommand.isEmergency(t)) return Result("refused", "Not drafting messages to emergency numbers. Nothing was sent.")
         if (looksSecret(b)) return Result("refused", "The text looks like it contains a secret or credential, so no draft was made. Nothing was sent.")
         val sp = ownerSpeech.lowercase()
         if (msgWords.none { sp.contains(it) })
