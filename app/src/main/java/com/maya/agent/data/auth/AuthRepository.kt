@@ -90,21 +90,27 @@ class AuthRepository(
                 return@withContext Result.Failure("Supabase anon key missing - local.properties me MAYA_SUPABASE_ANON_KEY daalo")
             }
             try {
-                val body = FormBody.Builder()
-                    .add("email", email)
-                    .add("password", password)
-                    .build()
+                // GoTrue expects JSON. A form body is rejected with 400 bad_json.
+                val body = com.google.gson.JsonObject().apply {
+                    addProperty("email", email.trim())
+                    addProperty("password", password)
+                }.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
                 val request = Request.Builder()
                     .url("$supabaseUrl/auth/v1/$path")
                     .addHeader("apikey", anonKey)
-                    .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                    .post(body)
+                                        .post(body)
                     .build()
                 http.newCall(request).execute().use { resp ->
                     if (!resp.isSuccessful) {
-                        return@withContext when (resp.code) {
-                            400 -> Result.Failure("Check your email or password")
-                            422 -> Result.Failure("This email seems to be registered already")
+                        val errCode = try {
+                            val o = JsonParser.parseString(resp.body?.string().orEmpty()).asJsonObject
+                            (o.get("error_code") ?: o.get("code"))?.takeIf { it.isJsonPrimitive }?.asString
+                        } catch (e: Exception) { null }
+                        return@withContext when {
+                            resp.code == 400 && errCode == "invalid_credentials" -> Result.Failure("Check your email or password")
+                            resp.code == 400 && errCode == "email_not_confirmed" -> Result.Failure("Email is not confirmed yet")
+                            resp.code == 400 -> Result.Failure("Sign-in request was not accepted (400${errCode?.let { ", $it" } ?: ""}). This is an app/server problem, not necessarily your password.")
+                            resp.code == 422 -> Result.Failure("This email seems to be registered already")
                             else -> Result.Failure("Sign-in failed (${resp.code}). The server may be waking up. Try once more.")
                         }
                     }
