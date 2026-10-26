@@ -26,6 +26,8 @@ class AuthRepository(
     httpClient: OkHttpClient? = null,
     private val supabaseUrl: String = BuildConfig.SUPABASE_URL,
     private val anonKey: String = BuildConfig.SUPABASE_ANON_KEY,
+    /** Tests only: EncryptedSharedPreferences needs the Android keystore, which JVM tests do not have. */
+    private val prefsOverride: android.content.SharedPreferences? = null,
 ) {
 
     companion object {
@@ -41,8 +43,8 @@ class AuthRepository(
         .readTimeout(60, TimeUnit.SECONDS) // backend cold starts
         .build()
 
-    private val prefs by lazy {
-        EncryptedSharedPreferences.create(
+    private val prefs: android.content.SharedPreferences by lazy {
+        prefsOverride ?: EncryptedSharedPreferences.create(
             appContext,
             "maya_auth",
             MasterKey.Builder(appContext).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),

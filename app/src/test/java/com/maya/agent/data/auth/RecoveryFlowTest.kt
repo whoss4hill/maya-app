@@ -21,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class RecoveryFlowTest {
     private val now = 1_800_000_000_000L
+    private fun plainPrefs() = ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("t_auth_" + System.nanoTime(), Context.MODE_PRIVATE)
 
     private val jwt = "aaaaaaaa.bbbbbbbb.cccc"
 
@@ -71,7 +72,7 @@ class RecoveryFlowTest {
         }).build()
 
     private fun repo(sink: MutableList<Pair<Request, String>>, code: Int, body: String = "{}") =
-        AuthRepository(ApplicationProvider.getApplicationContext<Context>(), client(sink, code, body), "https://proj.supabase.co", "anon")
+        AuthRepository(ApplicationProvider.getApplicationContext<Context>(), client(sink, code, body), "https://proj.supabase.co", "anon", plainPrefs())
 
     private fun reqBody(sink: List<Pair<Request, String>>, i: Int) = sink[i].second
 
@@ -110,7 +111,7 @@ class RecoveryFlowTest {
                 }
                 Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("x")
                     .body(json.toResponseBody("application/json".toMediaType())).build()
-            }).build(), "https://proj.supabase.co", "anon")
+            }).build(), "https://proj.supabase.co", "anon", plainPrefs())
         r.sendPasswordReset("owner@example.com")
         r.handleAuthRedirect(Uri.parse("maya://auth?code=abcdef123456"))
         assertEquals("o***@example.com", r.beginRecovery().getOrNull())

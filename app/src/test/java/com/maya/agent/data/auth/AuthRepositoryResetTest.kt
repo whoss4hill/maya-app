@@ -39,7 +39,7 @@ class AuthRepositoryResetTest {
     fun resetPostsEmailAsJsonToRecover() = runTest {
         val captured = mutableListOf<Pair<Request, String>>()
         val repo = AuthRepository(ApplicationProvider.getApplicationContext<Context>(), captureClient(200, captured),
-            "https://proj.supabase.co", "test-anon-key")
+            "https://proj.supabase.co", "test-anon-key", ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("t_auth", Context.MODE_PRIVATE))
         val result = repo.sendPasswordReset("owner@example.com")
         assertTrue("200 recover must surface Success", result is AuthRepository.Result.Success)
         assertEquals(1, captured.size)
@@ -57,7 +57,7 @@ class AuthRepositoryResetTest {
     fun resetFailureSurfacesHonestError() = runTest {
         val captured = mutableListOf<Pair<Request, String>>()
         val repo = AuthRepository(ApplicationProvider.getApplicationContext<Context>(), captureClient(500, captured),
-            "https://proj.supabase.co", "test-anon-key")
+            "https://proj.supabase.co", "test-anon-key", ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("t_auth", Context.MODE_PRIVATE))
         val result = repo.sendPasswordReset("owner@example.com")
         assertTrue(result is AuthRepository.Result.Failure)
         assertTrue((result as AuthRepository.Result.Failure).message.contains("500"))
