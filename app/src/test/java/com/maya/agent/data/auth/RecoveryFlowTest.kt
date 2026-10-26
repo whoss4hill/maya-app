@@ -32,13 +32,9 @@ class RecoveryFlowTest {
         for (t in listOf("recovery", "magiclink", "signup", "invite", "email_change"))
             assertEquals(t, RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&type=$t&expires_in=3600", null, now))
     }
-    @Test fun `google style fragment is an ordinary sign-in only when well formed`() {
-        assertTrue(RecoveryLink.parse("access_token=$jwt&refresh_token=RRRRRR&expires_in=3600&token_type=bearer", null, now) is RecoveryLink.Outcome.SignIn)
-        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=notajwt&expires_in=3600", null, now))
-        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt", null, now))
-        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&expires_in=-5", null, now))
-        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&expires_in=99999999999", null, now))
-        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&expires_at=${now / 1000 - 5}", null, now))
+    @Test fun `implicit fragment tokens never sign in or recover`() {
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&refresh_token=RRRRRR&expires_in=3600&token_type=bearer", null, now))
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&expires_in=3600", null, now))
     }
     @Test fun `duplicate or malformed params and code plus fragment are rejected`() {
         assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse(null, "code=abcdef123456&code=zzzzzzzzzz", now))
@@ -135,9 +131,47 @@ class RecoveryFlowTest {
         assertTrue(r.setNewPassword("longenough1") is AuthRepository.Result.Failure); assertEquals(0, sink.size)
         r.cancelRecovery(); r.signOut(); assertFalse(r.recoveryPending); assertFalse(r.recoveryCodeWaiting)
     }
-    @Test fun `ordinary google redirect still signs in`() {
+    @Test fun `implicit token callback is ignored, user stays signed out`() {
         val r = repo(mutableListOf(), 200)
-        assertEquals(AuthRepository.Redirect.SIGNED_IN, r.handleAuthRedirect(Uri.parse("maya://auth#access_token=aaaaaaaa.bbbbbbbb.cccc&refresh_token=RRRRRR&expires_in=3600")))
-        assertTrue(r.isSignedIn)
+        assertEquals(AuthRepository.Redirect.IGNORED, r.handleAuthRedirect(Uri.parse("maya://auth#access_token=aaaaaaaa.bbbbbbbb.cccc&refresh_token=RRRRRR&expires_in=3600")))
+        assertFalse(r.isSignedIn)
+    }
+    @Test fun `unsolicited error callback changes nothing`() {
+        val r = repo(mutableListOf(), 200)
+        assertEquals(AuthRepository.Redirect.IGNORED, r.handleAuthRedirect(Uri.parse("maya://auth?error=access_denied&error_code=otp_expired")))
+        assertEquals(null, r.consumeLinkError())
+    }
+    @Test fun `a bogus code does not burn the pending verifier and a rejected exchange keeps it`() = runTest {
+        val sink = mutableListOf<Pair<Request, String>>()
+        val r = repo(sink, 400)
+        // 400 for every call (send recover also 400): so seed prefs by a repo with 200 first
+        val prefs = ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("t_burn", Context.MODE_PRIVATE)
+        val ok = AuthRepository(ApplicationProvider.getApplicationContext<Context>(), client(mutableListOf(), 200), "https://proj.supabase.co", "anon", prefs)
+        ok.sendPasswordReset("owner@example.com")
+        val bad = AuthRepository(ApplicationProvider.getApplicationContext<Context>(), client(sink, 400), "https://proj.supabase.co", "anon", prefs)
+        assertEquals(AuthRepository.Redirect.RECOVERY, bad.handleAuthRedirect(Uri.parse("maya://auth?code=bogusbogus1")))
+        assertTrue(bad.beginRecovery().isFailure)
+        assertFalse(bad.recoveryPending)
+        // legitimate link afterwards still works with the same verifier
+        assertEquals(AuthRepository.Redirect.RECOVERY, bad.handleAuthRedirect(Uri.parse("maya://auth?code=realrealreal1")))
+        assertTrue(r.consumeLinkError() == null)
+    }
+    @Test fun `account mismatch is rejected and no recovery session survives`() = runTest {
+        val prefs = ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("t_mismatch", Context.MODE_PRIVATE)
+        val c = OkHttpClient.Builder().addInterceptor(Interceptor { chain ->
+            val path = chain.request().url.encodedPath
+            val json = when {
+                path.endsWith("/token") -> "{\"access_token\":\"aaaaaaaa.bbbbbbbb.cccc\",\"expires_in\":3600}"
+                path.endsWith("/user") -> "{\"email\":\"someoneelse@example.com\"}"
+                else -> "{}"
+            }
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("x").body(json.toResponseBody("application/json".toMediaType())).build()
+        }).build()
+        val r = AuthRepository(ApplicationProvider.getApplicationContext<Context>(), c, "https://proj.supabase.co", "anon", prefs)
+        r.sendPasswordReset("owner@example.com")
+        r.handleAuthRedirect(Uri.parse("maya://auth?code=abcdef123456"))
+        assertTrue(r.beginRecovery().isFailure)
+        assertFalse(r.recoveryPending)
+        assertTrue(r.setNewPassword("longenough1") is AuthRepository.Result.Failure)
     }
 }

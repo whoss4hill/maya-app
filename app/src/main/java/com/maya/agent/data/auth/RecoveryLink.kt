@@ -5,20 +5,17 @@ package com.maya.agent.data.auth
  * - Password recovery is accepted ONLY as a PKCE "code" (query) that the app can redeem with the verifier it
  *   generated when it asked for the reset email (see AuthRepository). A token in a URL fragment that carries any
  *   "type" (recovery, magiclink, signup, ...) is ignored: presence of type=recovery proves nothing.
- * - An ordinary sign-in fragment (Google OAuth) must have no "type", a JWT-shaped access token, and a sane expiry.
+ * - Implicit-flow fragment tokens are never accepted, so a foreign app cannot sign him in via maya://auth.
  * - Duplicate or malformed parameters are rejected. error_description and tokens are never copied into messages.
  */
 object RecoveryLink {
     sealed class Outcome {
         data class Code(val code: String) : Outcome()
-        data class SignIn(val accessToken: String, val refreshToken: String?, val expiresAt: Long?, val expiresIn: Long?) : Outcome()
         data class LinkError(val message: String) : Outcome()
         data object Ignore : Outcome()
     }
 
-    private val JWT = Regex("^[A-Za-z0-9_-]{8,4096}\\.[A-Za-z0-9_-]{8,4096}\\.[A-Za-z0-9_-]{4,4096}$")
     private val CODE = Regex("^[A-Za-z0-9._~-]{8,512}$")
-    private const val MAX_EXPIRES_S = 7L * 24 * 3600
 
     /** null = malformed or duplicate keys. */
     fun params(raw: String?): Map<String, String>? {
@@ -51,14 +48,8 @@ object RecoveryLink {
             if (f.isNotEmpty() || !CODE.matches(code)) return Outcome.Ignore
             return Outcome.Code(code)
         }
-        val token = f["access_token"] ?: return Outcome.Ignore
-        if (f.containsKey("type") || !JWT.matches(token)) return Outcome.Ignore
-        val ein = f["expires_in"]?.toLongOrNull(); val eat = f["expires_at"]?.toLongOrNull()
-        if (ein != null && (ein <= 0 || ein > MAX_EXPIRES_S)) return Outcome.Ignore
-        if (eat != null && (eat * 1000 <= nowMs || eat * 1000 > nowMs + MAX_EXPIRES_S * 1000)) return Outcome.Ignore
-        if (ein == null && eat == null) return Outcome.Ignore
-        val refresh = f["refresh_token"]?.takeIf { it.length in 4..512 }
-        return Outcome.SignIn(token, refresh, eat, ein)
+        // Any URL-fragment token (implicit flow) is deliberately NOT accepted: no sign-in or recovery from a bare callback.
+        return Outcome.Ignore
     }
 
     /** Exact app callback only: maya://auth (optional single slash), no userinfo, port or extra path. */

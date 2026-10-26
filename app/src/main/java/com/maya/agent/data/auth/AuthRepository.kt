@@ -90,7 +90,7 @@ class AuthRepository(
                     .build()
                 http.newCall(request).execute().use { resp ->
                     if (resp.isSuccessful) {
-                        prefs.edit().putString("pkce_verifier", verifier).putLong("pkce_ts", System.currentTimeMillis()).apply()
+                        prefs.edit().putString("pkce_verifier", verifier).putString("pkce_email", email.trim().lowercase()).putLong("pkce_ts", System.currentTimeMillis()).apply()
                         Result.Success
                     } else Result.Failure("Could not send the reset email (${resp.code}). Try once more.")
                 }
@@ -139,14 +139,8 @@ class AuthRepository(
             }
         }
 
-    /** Google login: opens Supabase's OAuth page; result returns via maya://auth deep link. */
-    fun googleSignInIntent(): Intent {
-        val url = "${BuildConfig.SUPABASE_URL}/auth/v1/authorize" +
-            "?provider=google&redirect_to=maya%3A%2F%2Fauth"
-        return Intent(Intent.ACTION_VIEW, Uri.parse(url))
-    }
 
-    enum class Redirect { SIGNED_IN, RECOVERY, LINK_ERROR, IGNORED }
+    enum class Redirect { RECOVERY, LINK_ERROR, IGNORED }
 
     private fun newVerifier(): String {
         val b = ByteArray(48); java.security.SecureRandom().nextBytes(b)
@@ -180,26 +174,26 @@ class AuthRepository(
                 if (freshVerifier() == null) { Redirect.IGNORED }  // not a reset this app asked for
                 else { recovery = null; pendingCode = o.code; linkError = null; Redirect.RECOVERY }
             }
-            is RecoveryLink.Outcome.LinkError -> { recovery = null; pendingCode = null; linkError = o.message; Redirect.LINK_ERROR }
+            is RecoveryLink.Outcome.LinkError ->
+                if (freshVerifier() == null) Redirect.IGNORED  // unsolicited error callback: no state change
+                else { linkError = o.message; Redirect.LINK_ERROR }
             RecoveryLink.Outcome.Ignore -> Redirect.IGNORED
-            is RecoveryLink.Outcome.SignIn -> {
-                prefs.edit()
-                    .putString("access_token", o.accessToken)
-                    .putString("refresh_token", o.refreshToken)
-                    .putLong("expires_at", refresher.expiryFrom(o.expiresAt, o.expiresIn))
-                    .apply()
-                Redirect.SIGNED_IN
-            }
         }
     }
 
-    /** Redeems the waiting PKCE code (one-shot: verifier and code are consumed before the request) and returns the masked account. */
+    private val exchanging = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Redeems the waiting PKCE code. Only one redemption runs at a time. The stored verifier is removed only after a
+     * successful exchange whose account matches the email the reset was requested for, so a bogus callback cannot
+     * burn a legitimate pending reset. The result is a recovery session only (never a signed-in session).
+     */
     suspend fun beginRecovery(): kotlin.Result<String> = withContext(Dispatchers.IO) {
-        val code = pendingCode; val verifier = freshVerifier()
-        pendingCode = null
-        prefs.edit().remove("pkce_verifier").remove("pkce_ts").apply()
-        if (code == null || verifier == null) return@withContext kotlin.Result.failure(IllegalStateException("no pending reset"))
+        if (!exchanging.compareAndSet(false, true)) return@withContext kotlin.Result.failure(IllegalStateException("busy"))
         try {
+            val code = pendingCode; val verifier = freshVerifier(); val wantedEmail = prefs.getString("pkce_email", null)
+            pendingCode = null
+            if (code == null || verifier == null || wantedEmail.isNullOrBlank()) return@withContext kotlin.Result.failure(IllegalStateException("no pending reset"))
             val body = com.google.gson.JsonObject().apply { addProperty("auth_code", code); addProperty("code_verifier", verifier) }.toString()
                 .toRequestBody("application/json; charset=utf-8".toMediaType())
             val req = Request.Builder().url("$supabaseUrl/auth/v1/token?grant_type=pkce").addHeader("apikey", anonKey).post(body).build()
@@ -211,13 +205,18 @@ class AuthRepository(
                 if (t.isNullOrBlank() || ein <= 0 || ein > 7L * 24 * 3600) return@withContext kotlin.Result.failure(IllegalStateException("bad response"))
                 t to (System.currentTimeMillis() + ein * 1000)
             }
+            // the code was valid and redeemed: this reset attempt is finished either way
+            prefs.edit().remove("pkce_verifier").remove("pkce_email").remove("pkce_ts").apply()
             recovery = RecoverySession(token, expMs)
-            verifyRecoverySession().onFailure { recovery = null }
+            val account = verifyRecoverySession(wantedEmail)
+            account.onFailure { recovery = null }
+            account
         } catch (e: Exception) { kotlin.Result.failure(e) }
+        finally { exchanging.set(false) }
     }
 
     /** Confirms the recovery token is a live session and returns whose account it is (masked), or a failure. */
-    suspend fun verifyRecoverySession(): kotlin.Result<String> = withContext(Dispatchers.IO) {
+    suspend fun verifyRecoverySession(expectedEmail: String? = null): kotlin.Result<String> = withContext(Dispatchers.IO) {
         val r = recovery
         if (r == null || r.expiresAtMs <= System.currentTimeMillis()) return@withContext kotlin.Result.failure(IllegalStateException("expired"))
         try {
@@ -226,7 +225,7 @@ class AuthRepository(
             http.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext kotlin.Result.failure(IllegalStateException("rejected"))
                 val email = JsonParser.parseString(resp.body?.string() ?: "{}").asJsonObject.get("email")?.takeIf { !it.isJsonNull }?.asString
-                if (email.isNullOrBlank()) kotlin.Result.failure(IllegalStateException("no email")) else kotlin.Result.success(RecoveryLink.maskEmail(email))
+                if (email.isNullOrBlank() || (expectedEmail != null && !email.trim().equals(expectedEmail, ignoreCase = true))) kotlin.Result.failure(IllegalStateException("account mismatch")) else kotlin.Result.success(RecoveryLink.maskEmail(email))
             }
         } catch (e: Exception) { kotlin.Result.failure(e) }
     }

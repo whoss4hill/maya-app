@@ -227,7 +227,6 @@ class MainActivity : FragmentActivity() {
         val uri = intent?.data ?: return
         if (uri.scheme == "maya" && uri.host == "auth") {
             when (MayaApp.from(this).auth.handleAuthRedirect(uri)) {
-                com.maya.agent.data.auth.AuthRepository.Redirect.SIGNED_IN -> navController?.navigate(Routes.HOME) { popUpTo(0) }
                 com.maya.agent.data.auth.AuthRepository.Redirect.RECOVERY -> navController?.navigate(Routes.RESET_PASSWORD) { popUpTo(0) }
                 com.maya.agent.data.auth.AuthRepository.Redirect.LINK_ERROR -> navController?.navigate(Routes.SIGNIN) { popUpTo(0) }
                 com.maya.agent.data.auth.AuthRepository.Redirect.IGNORED -> {}
