@@ -30,7 +30,7 @@ object VoiceCall {
             CallConfirmation.Outcome.Unclear -> Result("unclear_answer", "The owner's answer was not a clear yes. Nothing was dialled. Ask again: should I call, yes or no?")
         }
 
-    fun place(target: String, deps: PhoneCommand.Deps, conf: CallConfirmation = confirmation): Result {
+    fun place(target: String, deps: PhoneCommand.Deps, conf: CallConfirmation = confirmation, now: () -> Long = { System.currentTimeMillis() }): Result {
         conf.reset() // any new call request discards an older pending confirmation
         val t = target.trim()
         if (DialCommand.isEmergency(t) && t.none { it.isLetter() })
@@ -58,10 +58,22 @@ object VoiceCall {
         if (DialCommand.isEmergency(number))
             return if (deps.dial(number)) Result("dialer_opened", "That is an emergency number. Only the dialer was opened; the owner must press Call. Nothing was auto-dialled.")
             else Result("blocked", "Could not open the dialer. Nothing was dialled.")
+        // The model emitting the tool is not enough: the app must have heard the owner ask for a call out loud.
+        if (!conf.ownerAskedForCall(now())) {
+            return if (deps.openDialer(number)) Result("dialer_opened", "The app did not hear the owner ask for a call, so it did not place one. It opened the dialer with the number; the owner must press Call. Tell them so.")
+            else Result("blocked", "The app did not hear the owner ask for a call. Nothing was dialled.")
+        }
         if (!deps.isKnownRecipient(number)) {
             conf.begin(number, name)
-            val who = if (name.isBlank()) "this number" else "$name"
-            return Result("needs_confirmation", "New recipient: the owner's call history on this phone has no earlier call with $who, so a contact entry alone does not count. Nothing was dialled. Read the number back to the owner digit by digit ($number), then ask clearly whether to call. Then STOP and wait for the owner's own answer. Only after they answered, call confirm_pending_call (no arguments). The app checks their actual words; you cannot confirm for them. If they name a different person or number, start over with call_contact.")
+            val spoken = number.filter { it.isDigit() || it == '+' }.map { if (it == '+') "plus" else it.toString() }.joinToString(" ")
+            val lead = if (name.isBlank()) "Naya number" else "$name, naya number"
+            val ok = deps.speakReadback("$lead. $spoken. Bolo, call lagaun?") { conf.onReadbackSpoken(now()) }
+            if (!ok) {
+                conf.reset()
+                return if (deps.openDialer(number)) Result("dialer_opened", "The app could not read the new number back aloud, so it did not place the call. It opened the dialer with the number; the owner must press Call.")
+                else Result("blocked", "The app could not read the number back aloud. Nothing was dialled.")
+            }
+            return Result("needs_confirmation", "New recipient (no earlier call in the call log; a contact entry alone does not count). Nothing was dialled. The APP is now reading the number aloud itself: say nothing about the number and do not read it yourself. Wait silently for the owner's own answer, then call confirm_pending_call (no arguments). The app checks their actual words; you cannot confirm for them. If they name a different person or number, start over with call_contact.")
         }
         return if (deps.dial(number)) Result("intent_launched", "Call intent launched to the number; Android cannot confirm the call connected. Do not say the person picked up.")
         else Result("blocked", "Android refused to start the call (no dialer or background limit). Nothing was dialled.")

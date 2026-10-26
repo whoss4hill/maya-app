@@ -91,6 +91,8 @@ object LiveToolBridge {
             lookup = { DialCommand.lookup(context, it) },
             dial = { DialCommand.call(context, it) },
             isKnownRecipient = { isKnown(context, it) },
+            speakReadback = { text, done -> ReadbackSpeaker.speak(context.applicationContext, text, done) { VoiceCall.confirmation.reset() } },
+            openDialer = { n -> try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.fromParts("tel", n, null)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false } },
         )
     }
 

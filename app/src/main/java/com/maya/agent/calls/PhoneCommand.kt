@@ -20,6 +20,10 @@ object PhoneCommand {
         val dial: (String) -> Boolean,
         /** True only when the call log shows the owner interacted with this number (a saved contact alone is not proof). Default true keeps the Telegram path unchanged. */
         val isKnownRecipient: (String) -> Boolean = { true },
+        /** Speaks [text] with the app's own TTS; invokes onDone after the full text was spoken. Returns false when it cannot be spoken. */
+        val speakReadback: (text: String, onDone: () -> Unit) -> Boolean = { _, _ -> false },
+        /** Opens the dialer prefilled (owner must press Call). */
+        val openDialer: (String) -> Boolean = { false },
     )
 
     private val seen = LinkedHashSet<String>()

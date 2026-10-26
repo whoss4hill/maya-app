@@ -82,7 +82,7 @@ class LiveToolBridgeTest {
 
     private val dialed = mutableListOf<String>()
     private fun deps(known: Boolean = true) = com.maya.agent.calls.PhoneCommand.Deps(
-        { true }, { true }, { listOf(com.maya.agent.calls.DialCommand.Match("Ammi", "9876543210")) }, { dialed.add(it); true }, { known })
+        { true }, { true }, { listOf(com.maya.agent.calls.DialCommand.Match("Ammi", "9876543210")) }, { dialed.add(it); true }, { known }, { _, _ -> true }, { true })
 
     @Test
     fun `call_contact declaration is well formed and end to end result never claims connected`() {
@@ -91,7 +91,7 @@ class LiveToolBridgeTest {
         assertEquals("target", d.getAsJsonObject("parameters").getAsJsonArray("required")[0].asString)
         assertEquals(0, decls.first { it.get("name").asString == "confirm_pending_call" }
             .getAsJsonObject("parameters").getAsJsonObject("properties").size())
-        val conf = com.maya.agent.calls.CallConfirmation()
+        val conf = com.maya.agent.calls.CallConfirmation().also { it.onOwnerTranscript("Ammi ko call karo", System.currentTimeMillis()) }
         val out = JsonParser.parseString(LiveToolBridge.callContactResult("{\"target\":\"Ammi\"}", deps(), conf)).asJsonObject.get("result").asString
         assertEquals(listOf("9876543210"), dialed)
         assertTrue(out.contains("cannot confirm"))

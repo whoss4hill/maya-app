@@ -10,60 +10,73 @@ import org.junit.Test
 
 class VoiceCallTest {
     private val dialed = mutableListOf<String>()
-    private fun deps(call: Boolean = true, contacts: Boolean = true, found: List<DialCommand.Match> = emptyList(), dialOk: Boolean = true, known: Boolean = true) =
-        PhoneCommand.Deps({ call }, { contacts }, { found }, { dialed.add(it); dialOk }, { known })
+    private fun deps(call: Boolean = true, contacts: Boolean = true, found: List<DialCommand.Match> = emptyList(), dialOk: Boolean = true, known: Boolean = true, tts: Boolean = true) =
+        PhoneCommand.Deps({ call }, { contacts }, { found }, { dialed.add(it); dialOk }, { known },
+            { text, done -> spoken.add(text); if (tts) pendingDone = done; tts }, { dialerOpened.add(it); true })
+    private val spoken = mutableListOf<String>()
+    private val dialerOpened = mutableListOf<String>()
+    private var pendingDone: (() -> Unit)? = null
+    /** conf where the owner just asked for a call out loud */
+    private fun asked() = CallConfirmation().also { it.onOwnerTranscript("Maya call karo", 0) }
 
     @Test fun `number is dialled and not claimed connected`() {
-        val r = VoiceCall.place("98765 43210", deps())
+        val r = VoiceCall.place("98765 43210", deps(), asked(), { 1000 })
         assertEquals("intent_launched", r.status); assertEquals(listOf("9876543210"), dialed)
         assertTrue(r.text.contains("not") || r.text.contains("cannot confirm"))
     }
     @Test fun `single contact match is dialled`() {
-        val r = VoiceCall.place("Ammi", deps(found = listOf(DialCommand.Match("Ammi", "+91 98765 43210"))))
+        val r = VoiceCall.place("Ammi", deps(found = listOf(DialCommand.Match("Ammi", "+91 98765 43210"))), asked(), { 1000 })
         assertEquals("intent_launched", r.status); assertEquals(1, dialed.size)
     }
     @Test fun `ambiguous contact never dials`() {
-        val r = VoiceCall.place("Raj", deps(found = listOf(DialCommand.Match("Raj A", "1111111"), DialCommand.Match("Raj B", "2222222"))))
+        val r = VoiceCall.place("Raj", deps(found = listOf(DialCommand.Match("Raj A", "1111111"), DialCommand.Match("Raj B", "2222222"))), asked(), { 1000 })
         assertEquals("ambiguous", r.status); assertTrue(dialed.isEmpty())
     }
     @Test fun `unknown contact and gibberish never dial`() {
-        assertEquals("not_found", VoiceCall.place("Zed", deps()).status)
-        assertEquals("unclear", VoiceCall.place("", deps()).status)
-        assertEquals("unclear", VoiceCall.place("me", deps()).status)
+        assertEquals("not_found", VoiceCall.place("Zed", deps(), asked(), { 1000 }).status)
+        assertEquals("unclear", VoiceCall.place("", deps(), asked(), { 1000 }).status)
+        assertEquals("unclear", VoiceCall.place("me", deps(), asked(), { 1000 }).status)
         assertTrue(dialed.isEmpty())
     }
     @Test fun `missing permissions never dial`() {
-        assertEquals("blocked", VoiceCall.place("9876543210", deps(call = false)).status)
-        assertEquals("blocked", VoiceCall.place("Ammi", deps(contacts = false)).status)
+        assertEquals("blocked", VoiceCall.place("9876543210", deps(call = false), asked(), { 1000 }).status)
+        assertEquals("blocked", VoiceCall.place("Ammi", deps(contacts = false), asked(), { 1000 }).status)
         assertTrue(dialed.isEmpty())
     }
     @Test fun `os refusal is reported as blocked`() {
-        assertEquals("blocked", VoiceCall.place("9876543210", deps(dialOk = false)).status)
+        assertEquals("blocked", VoiceCall.place("9876543210", deps(dialOk = false), asked(), { 1000 }).status)
     }
     @Test fun `emergency number only opens dialer`() {
         assertTrue(DialCommand.isEmergency("112")); assertFalse(DialCommand.isEmergency("9876543210"))
-        assertEquals("dialer_opened", VoiceCall.place("112", deps()).status)
+        assertEquals("dialer_opened", VoiceCall.place("112", deps(), asked(), { 1000 }).status)
     }
 
-    @Test fun `unknown number is held until the app hears the owner after readback`() {
-        val d = deps(known = false); val c = CallConfirmation()
-        assertEquals("needs_confirmation", VoiceCall.place("9876543210", d, c).status)
-        assertEquals("wait", VoiceCall.confirmPending(d, c, 0).status)             // model confirms before readback finished
-        c.onTurnComplete(1000)
-        assertEquals("no_answer", VoiceCall.confirmPending(d, c, 2000).status)     // model invents a yes: nothing heard
+    @Test fun `unknown number is read back by the app and held until the owner answers after it`() {
+        val d = deps(known = false); val c = asked()
+        assertEquals("needs_confirmation", VoiceCall.place("9876543210", d, c, { 1000 }).status)
+        assertTrue(spoken[0].contains("9 8 7 6 5 4 3 2 1 0"))                   // app speaks the exact digits itself
+        assertEquals("wait", VoiceCall.confirmPending(d, c, 1100).status)       // model confirms before TTS finished
+        pendingDone!!.invoke()                                                  // TTS done callback -> readback finished at t=1000
+        assertEquals("no_answer", VoiceCall.confirmPending(d, c, 3000).status)  // model invents a yes: nothing heard
         assertTrue(dialed.isEmpty())
-        c.onOwnerTranscript("haan kar do")
-        assertEquals("intent_launched", VoiceCall.confirmPending(d, c, 3000).status)
+        c.onOwnerTranscript("haan kar do", 3000)
+        assertEquals("intent_launched", VoiceCall.confirmPending(d, c, 3500).status)
         assertEquals(listOf("9876543210"), dialed)
-        assertEquals("no_pending", VoiceCall.confirmPending(d, c, 4000).status)    // one-shot, replay refused
+        assertEquals("no_pending", VoiceCall.confirmPending(d, c, 4000).status) // one-shot, replay refused
         assertEquals(1, dialed.size)
     }
-    @Test fun `contact entry alone is not prior interaction`() {
-        val c = CallConfirmation()
-        val r = VoiceCall.place("Ammi", deps(known = false, found = listOf(DialCommand.Match("Ammi", "9876543210"))), c)
-        assertEquals("needs_confirmation", r.status); assertTrue(dialed.isEmpty())
+    @Test fun `tts failure fails closed to dialer only`() {
+        val r = VoiceCall.place("9876543210", deps(known = false, tts = false), asked(), { 1000 })
+        assertEquals("dialer_opened", r.status); assertTrue(dialed.isEmpty()); assertEquals(1, dialerOpened.size)
     }
-    @Test fun `known call history dials directly`() {
-        assertEquals("intent_launched", VoiceCall.place("9876543210", deps(known = true), CallConfirmation()).status)
+    @Test fun `known number still needs the owner to have asked out loud`() {
+        val noAsk = CallConfirmation()
+        assertEquals("dialer_opened", VoiceCall.place("9876543210", deps(known = true), noAsk, { 1000 }).status)
+        assertTrue(dialed.isEmpty())
+        assertEquals("intent_launched", VoiceCall.place("9876543210", deps(known = true), asked(), { 1000 }).status)
+    }
+    @Test fun `contact entry alone is not prior interaction`() {
+        val r = VoiceCall.place("Ammi", deps(known = false, found = listOf(DialCommand.Match("Ammi", "9876543210"))), asked(), { 1000 })
+        assertEquals("needs_confirmation", r.status); assertTrue(dialed.isEmpty())
     }
 }
