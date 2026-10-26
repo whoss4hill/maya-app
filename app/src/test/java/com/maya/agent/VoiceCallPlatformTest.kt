@@ -33,7 +33,7 @@ class VoiceCallPlatformTest {
     private val ctx get() = ApplicationProvider.getApplicationContext<android.content.Context>()
     private val args = "{\"target\":\"9876543210\"}"
 
-    @Before fun clean() { ReadbackSpeaker.resetForTest(); VoiceCall.confirmation.reset(); ShadowTextToSpeech.clearLastSpokenText() }
+    @Before fun clean() { ReadbackSpeaker.resetForTest(); VoiceCall.confirmation.reset(); VoiceCall.confirmation.forgetSpeech(); ShadowTextToSpeech.clearLastSpokenText() }
 
     private fun listenerAndId(): Pair<android.speech.tts.UtteranceProgressListener, String> {
         val f = ReadbackSpeaker::class.java.getDeclaredField("listener").apply { isAccessible = true }

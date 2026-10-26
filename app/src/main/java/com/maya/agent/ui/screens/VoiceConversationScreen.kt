@@ -97,7 +97,7 @@ fun VoiceConversationScreen(onEnd: () -> Unit) {
         if (granted) manager.start(callback) else micPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
     DisposableEffect(Unit) {
-        onDispose { manager.end(); com.maya.agent.calls.VoiceCall.confirmation.reset(); com.maya.agent.voice.live.ReadbackSpeaker.stop() }
+        onDispose { manager.end(); com.maya.agent.calls.VoiceCall.confirmation.reset(); com.maya.agent.calls.VoiceCall.confirmation.forgetSpeech(); com.maya.agent.voice.live.ReadbackSpeaker.stop() }
     }
 
     // Speaking indicator: any model audio flips the orb to SPEAKING briefly.

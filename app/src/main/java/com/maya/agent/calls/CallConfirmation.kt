@@ -45,6 +45,9 @@ class CallConfirmation {
 
     private val recent = ArrayDeque<Pair<Long, String>>()
 
+    /** Drop remembered owner speech (session end/tests). reset() only drops the pending call. */
+    @Synchronized fun forgetSpeech() { recent.clear() }
+
     @Synchronized fun onOwnerTranscript(text: String, now: Long) {
         recent.addLast(now to text)
         while (recent.isNotEmpty() && now - recent.first().first > ASK_WINDOW_MS) recent.removeFirst()
