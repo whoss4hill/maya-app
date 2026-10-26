@@ -10,8 +10,8 @@ import org.junit.Test
 
 class VoiceCallTest {
     private val dialed = mutableListOf<String>()
-    private fun deps(call: Boolean = true, contacts: Boolean = true, found: List<DialCommand.Match> = emptyList(), dialOk: Boolean = true) =
-        PhoneCommand.Deps({ call }, { contacts }, { found }, { dialed.add(it); dialOk })
+    private fun deps(call: Boolean = true, contacts: Boolean = true, found: List<DialCommand.Match> = emptyList(), dialOk: Boolean = true, known: Boolean = true) =
+        PhoneCommand.Deps({ call }, { contacts }, { found }, { dialed.add(it); dialOk }, { known })
 
     @Test fun `number is dialled and not claimed connected`() {
         val r = VoiceCall.place("98765 43210", deps())
@@ -43,5 +43,17 @@ class VoiceCallTest {
     @Test fun `emergency number only opens dialer`() {
         assertTrue(DialCommand.isEmergency("112")); assertFalse(DialCommand.isEmergency("9876543210"))
         assertEquals("dialer_opened", VoiceCall.place("112", deps()).status)
+    }
+
+    @Test fun `unknown number needs spoken confirmation then dials`() {
+        val d = deps(known = false)
+        val first = VoiceCall.place("9876543210", d)
+        assertEquals("needs_confirmation", first.status); assertTrue(dialed.isEmpty())
+        val second = VoiceCall.place("9876543210", d, confirmedNewRecipient = true)
+        assertEquals("intent_launched", second.status); assertEquals(1, dialed.size)
+    }
+    @Test fun `contact name is known so no extra confirmation`() {
+        val r = VoiceCall.place("Ammi", deps(known = false, found = listOf(DialCommand.Match("Ammi", "9876543210"))))
+        assertEquals("intent_launched", r.status)
     }
 }

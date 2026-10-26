@@ -18,6 +18,8 @@ object PhoneCommand {
         val hasContactsPermission: () -> Boolean,
         val lookup: (String) -> List<DialCommand.Match>,
         val dial: (String) -> Boolean,
+        /** True when the owner has interacted with this number on this phone (contact or call log). Default true keeps the Telegram path unchanged. */
+        val isKnownRecipient: (String) -> Boolean = { true },
     )
 
     private val seen = LinkedHashSet<String>()

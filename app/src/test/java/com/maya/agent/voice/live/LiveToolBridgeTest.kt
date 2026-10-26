@@ -79,4 +79,25 @@ class LiveToolBridgeTest {
         assertTrue(both.size() == 2 && both.any { it.asJsonObject.has("googleSearch") }
             && both.any { it.asJsonObject.has("functionDeclarations") })
     }
+
+    private val dialed = mutableListOf<String>()
+    private fun deps(known: Boolean = true) = com.maya.agent.calls.PhoneCommand.Deps(
+        { true }, { true }, { listOf(com.maya.agent.calls.DialCommand.Match("Ammi", "9876543210")) }, { dialed.add(it); true }, { known })
+
+    @Test
+    fun `call_contact declaration is well formed and end to end result never claims connected`() {
+        val d = JsonParser.parseString(LiveToolBridge.DECLARATIONS_JSON).asJsonArray
+            .map { it.asJsonObject }.first { it.get("name").asString == "call_contact" }
+        val params = d.getAsJsonObject("parameters")
+        assertEquals("target", params.getAsJsonArray("required")[0].asString)
+        assertTrue(params.getAsJsonObject("properties").has("confirmed_new_recipient"))
+        val out = JsonParser.parseString(LiveToolBridge.callContactResult("{\"target\":\"Ammi\"}", deps())).asJsonObject.get("result").asString
+        assertEquals(listOf("9876543210"), dialed)
+        assertTrue(out.contains("cannot confirm"))
+        dialed.clear()
+        val blocked = LiveToolBridge.callContactResult("{\"target\":\"9999999999\"}", deps(known = false))
+        assertTrue(dialed.isEmpty() && blocked.contains("new recipient"))
+        assertTrue(LiveToolBridge.callContactResult("not json", deps()).contains("Nothing was dialled"))
+        assertTrue(dialed.isEmpty())
+    }
 }

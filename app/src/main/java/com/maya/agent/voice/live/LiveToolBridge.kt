@@ -37,7 +37,7 @@ object LiveToolBridge {
       {"name":"go_home","description":"Go to the phone home screen (needs the accessibility service)",
        "parameters":{"type":"OBJECT","properties":{}}},
       {"name":"call_contact","description":"Place a phone call ONLY when the owner has just clearly asked to call someone. target is a contact name or a phone number exactly as the owner said it. If the result says ambiguous, unclear or not found, ask the owner; never guess a number. A launched call is not a connected call.",
-       "parameters":{"type":"OBJECT","properties":{"target":{"type":"STRING"}},"required":["target"]}}
+       "parameters":{"type":"OBJECT","properties":{"target":{"type":"STRING"},"confirmed_new_recipient":{"type":"BOOLEAN"}},"required":["target"]}}
     ]"""
 
     private fun timeAndWeather(context: Context): String {
@@ -71,6 +71,16 @@ object LiveToolBridge {
         return "Current date & time: " + ist + ". Weather Data: " + weather
     }
 
+    /** Pure: function-call args JSON -> tool-result JSON string. Testable without a device (no Context). */
+    fun callContactResult(argsJson: String, deps: PhoneCommand.Deps): String {
+        val args = try { JsonParser.parseString(argsJson).asJsonObject } catch (e: Exception) { JsonObject() }
+        val target = args.get("target")?.takeIf { it.isJsonPrimitive }?.asString
+        val confirmed = args.get("confirmed_new_recipient")?.takeIf { it.isJsonPrimitive }?.asBoolean == true
+        val res = if (target.isNullOrBlank()) VoiceCall.Result("unclear", "No target given. Nothing was dialled.")
+            else VoiceCall.place(target, deps, confirmed)
+        return JsonObject().apply { addProperty("result", res.text) }.toString()
+    }
+
     private fun callDeps(context: Context): PhoneCommand.Deps {
         fun granted(p: String) = androidx.core.content.ContextCompat.checkSelfPermission(context, p) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -79,7 +89,28 @@ object LiveToolBridge {
             hasContactsPermission = { granted(android.Manifest.permission.READ_CONTACTS) },
             lookup = { DialCommand.lookup(context, it) },
             dial = { DialCommand.call(context, it) },
+            isKnownRecipient = { isKnown(context, it) },
         )
+    }
+
+    /** Known = saved contact number, or present in the call log (needs READ_CALL_LOG; unknown if not granted). */
+    private fun isKnown(context: Context, number: String): Boolean {
+        val key = DialCommand.normalize(number)
+        fun granted(p: String) = androidx.core.content.ContextCompat.checkSelfPermission(context, p) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        try {
+            if (granted(android.Manifest.permission.READ_CONTACTS)) {
+                val u = android.net.Uri.withAppendedPath(android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI, android.net.Uri.encode(number))
+                context.contentResolver.query(u, arrayOf(android.provider.ContactsContract.PhoneLookup._ID), null, null, null)?.use { if (it.moveToFirst()) return true }
+            }
+            if (granted(android.Manifest.permission.READ_CALL_LOG)) {
+                context.contentResolver.query(android.provider.CallLog.Calls.CONTENT_URI, arrayOf(android.provider.CallLog.Calls.NUMBER), null, null, null)?.use {
+                    var n = 0
+                    while (it.moveToNext() && n++ < 500) if (DialCommand.normalize(it.getString(0) ?: "") == key) return true
+                }
+            }
+        } catch (_: Exception) {}
+        return false
     }
 
     /** Pure mapping; null = unknown/unsupported call. */
@@ -116,10 +147,7 @@ object LiveToolBridge {
             return JsonObject().apply { addProperty("result", result) }.toString()
         }
         if (call.name == "call_contact") {
-            val target = try { JsonParser.parseString(call.argsJson).asJsonObject.get("target")?.asString } catch (e: Exception) { null }
-            val res = if (target.isNullOrBlank()) VoiceCall.Result("unclear", "No target given. Nothing was dialled.")
-                else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { VoiceCall.place(target, callDeps(context)) }
-            return JsonObject().apply { addProperty("result", res.text) }.toString()
+            return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { callContactResult(call.argsJson, callDeps(context)) }
         }
         val intent = toIntent(call)
             ?: return "{\"result\":\"Ye action voice me available nahi hai\"}"
