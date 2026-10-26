@@ -18,7 +18,7 @@ object PhoneCommand {
         val hasContactsPermission: () -> Boolean,
         val lookup: (String) -> List<DialCommand.Match>,
         val dial: (String) -> Boolean,
-        /** True when the owner has interacted with this number on this phone (contact or call log). Default true keeps the Telegram path unchanged. */
+        /** True only when the call log shows the owner interacted with this number (a saved contact alone is not proof). Default true keeps the Telegram path unchanged. */
         val isKnownRecipient: (String) -> Boolean = { true },
     )
 

@@ -25,6 +25,7 @@ object LiveProtocol {
         voiceName: String,
         enableResumption: Boolean = true,
         enableOutputTranscription: Boolean = false,
+        enableInputTranscription: Boolean = false,
         resumptionHandle: String? = null,
         toolsJson: String? = null,
         includeGoogleSearch: Boolean = false,
@@ -56,6 +57,7 @@ object LiveProtocol {
                 })
             }
             if (enableOutputTranscription) add("outputAudioTranscription", JsonObject())
+            if (enableInputTranscription) add("inputAudioTranscription", JsonObject())
             if (!toolsJson.isNullOrBlank() || includeGoogleSearch) {
                 add("tools", com.google.gson.JsonArray().apply {
                     if (!toolsJson.isNullOrBlank()) {

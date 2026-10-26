@@ -30,6 +30,7 @@ class LiveSession(
         /** User barged in: flush playback immediately. */
         fun onInterrupted() {}
         fun onTurnComplete() {}
+        fun onInputTranscript(text: String) {}
         fun onToolCall(calls: List<LiveProtocol.ServerEvent.FunctionCall>) {}
         /** Server is about to close (~10 min connection cap): reconnect with the resumption handle. */
         fun onGoAway() {}
@@ -53,6 +54,7 @@ class LiveSession(
                         is LiveProtocol.ServerEvent.SetupComplete -> listener.onSetupComplete()
                         is LiveProtocol.ServerEvent.ModelTurn -> event.audioChunks.forEach { listener.onAudio(it) }
                         is LiveProtocol.ServerEvent.OutputTranscript -> listener.onOutputTranscript(event.text)
+                        is LiveProtocol.ServerEvent.InputTranscript -> listener.onInputTranscript(event.text)
                         is LiveProtocol.ServerEvent.Interrupted -> listener.onInterrupted()
                         is LiveProtocol.ServerEvent.TurnComplete -> listener.onTurnComplete()
                         is LiveProtocol.ServerEvent.ToolCall -> listener.onToolCall(event.calls)

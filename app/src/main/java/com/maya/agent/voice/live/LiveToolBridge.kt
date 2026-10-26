@@ -37,7 +37,9 @@ object LiveToolBridge {
       {"name":"go_home","description":"Go to the phone home screen (needs the accessibility service)",
        "parameters":{"type":"OBJECT","properties":{}}},
       {"name":"call_contact","description":"Place a phone call ONLY when the owner has just clearly asked to call someone. target is a contact name or a phone number exactly as the owner said it. If the result says ambiguous, unclear or not found, ask the owner; never guess a number. A launched call is not a connected call.",
-       "parameters":{"type":"OBJECT","properties":{"target":{"type":"STRING"},"confirmed_new_recipient":{"type":"BOOLEAN"}},"required":["target"]}}
+       "parameters":{"type":"OBJECT","properties":{"target":{"type":"STRING"}},"required":["target"]}},
+      {"name":"confirm_pending_call","description":"Only after call_contact said needs_confirmation, you read the number back, and the owner answered out loud. Takes no arguments: the app itself checks what the owner actually said. Never call it before the owner answered.",
+       "parameters":{"type":"OBJECT","properties":{}}}
     ]"""
 
     private fun timeAndWeather(context: Context): String {
@@ -72,12 +74,11 @@ object LiveToolBridge {
     }
 
     /** Pure: function-call args JSON -> tool-result JSON string. Testable without a device (no Context). */
-    fun callContactResult(argsJson: String, deps: PhoneCommand.Deps): String {
+    fun callContactResult(argsJson: String, deps: PhoneCommand.Deps, conf: com.maya.agent.calls.CallConfirmation = VoiceCall.confirmation): String {
         val args = try { JsonParser.parseString(argsJson).asJsonObject } catch (e: Exception) { JsonObject() }
         val target = args.get("target")?.takeIf { it.isJsonPrimitive }?.asString
-        val confirmed = args.get("confirmed_new_recipient")?.takeIf { it.isJsonPrimitive }?.asBoolean == true
         val res = if (target.isNullOrBlank()) VoiceCall.Result("unclear", "No target given. Nothing was dialled.")
-            else VoiceCall.place(target, deps, confirmed)
+            else VoiceCall.place(target, deps, conf)
         return JsonObject().apply { addProperty("result", res.text) }.toString()
     }
 
@@ -93,24 +94,19 @@ object LiveToolBridge {
         )
     }
 
-    /** Known = saved contact number, or present in the call log (needs READ_CALL_LOG; unknown if not granted). */
+    /** Known = the call log shows an earlier call with this number. A saved contact alone is NOT proof; a missing permission or a read failure means NOT known. */
     private fun isKnown(context: Context, number: String): Boolean {
         val key = DialCommand.normalize(number)
-        fun granted(p: String) = androidx.core.content.ContextCompat.checkSelfPermission(context, p) ==
-            android.content.pm.PackageManager.PERMISSION_GRANTED
-        try {
-            if (granted(android.Manifest.permission.READ_CONTACTS)) {
-                val u = android.net.Uri.withAppendedPath(android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI, android.net.Uri.encode(number))
-                context.contentResolver.query(u, arrayOf(android.provider.ContactsContract.PhoneLookup._ID), null, null, null)?.use { if (it.moveToFirst()) return true }
-            }
-            if (granted(android.Manifest.permission.READ_CALL_LOG)) {
-                context.contentResolver.query(android.provider.CallLog.Calls.CONTENT_URI, arrayOf(android.provider.CallLog.Calls.NUMBER), null, null, null)?.use {
-                    var n = 0
-                    while (it.moveToNext() && n++ < 500) if (DialCommand.normalize(it.getString(0) ?: "") == key) return true
-                }
-            }
-        } catch (_: Exception) {}
-        return false
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALL_LOG) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED) return false
+        return try {
+            context.contentResolver.query(android.provider.CallLog.Calls.CONTENT_URI, arrayOf(android.provider.CallLog.Calls.NUMBER),
+                null, null, "date DESC")?.use {
+                var n = 0
+                while (it.moveToNext() && n++ < 1000) if (DialCommand.normalize(it.getString(0) ?: "") == key) return@use true
+                false
+            } ?: false
+        } catch (_: Exception) { false }
     }
 
     /** Pure mapping; null = unknown/unsupported call. */
@@ -148,6 +144,11 @@ object LiveToolBridge {
         }
         if (call.name == "call_contact") {
             return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { callContactResult(call.argsJson, callDeps(context)) }
+        }
+        if (call.name == "confirm_pending_call") {
+            return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                JsonObject().apply { addProperty("result", VoiceCall.confirmPending(callDeps(context)).text) }.toString()
+            }
         }
         val intent = toIntent(call)
             ?: return "{\"result\":\"Ye action voice me available nahi hai\"}"

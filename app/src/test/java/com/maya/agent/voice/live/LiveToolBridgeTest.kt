@@ -59,14 +59,14 @@ class LiveToolBridgeTest {
     fun `declarations json is valid and names match mapping`() {
         val decls = JsonParser.parseString(LiveToolBridge.DECLARATIONS_JSON).asJsonArray
         val names = decls.map { it.asJsonObject.get("name").asString }.toSet()
-        assertEquals(setOf("set_timer","set_alarm","add_to_cart","open_app","tap_text","go_back","go_home","call_contact"), names)
+        assertEquals(setOf("set_timer","set_alarm","add_to_cart","open_app","tap_text","go_back","go_home","call_contact","confirm_pending_call"), names)
     }
 
     @Test
     fun `setup embeds tools when provided`() {
         val json = LiveProtocol.buildSetup("m", "s", "Kore", toolsJson = LiveToolBridge.DECLARATIONS_JSON)
         val tools = JsonParser.parseString(json).asJsonObject.getAsJsonObject("setup").getAsJsonArray("tools")
-        assertTrue(tools[0].asJsonObject.getAsJsonArray("functionDeclarations").size() == 8)
+        assertTrue(tools[0].asJsonObject.getAsJsonArray("functionDeclarations").size() == 9)
         val bare = LiveProtocol.buildSetup("m", "s", "Kore")
         assertTrue(!JsonParser.parseString(bare).asJsonObject.getAsJsonObject("setup").has("tools"))
         val withSearch = JsonParser.parseString(
@@ -86,17 +86,18 @@ class LiveToolBridgeTest {
 
     @Test
     fun `call_contact declaration is well formed and end to end result never claims connected`() {
-        val d = JsonParser.parseString(LiveToolBridge.DECLARATIONS_JSON).asJsonArray
-            .map { it.asJsonObject }.first { it.get("name").asString == "call_contact" }
-        val params = d.getAsJsonObject("parameters")
-        assertEquals("target", params.getAsJsonArray("required")[0].asString)
-        assertTrue(params.getAsJsonObject("properties").has("confirmed_new_recipient"))
-        val out = JsonParser.parseString(LiveToolBridge.callContactResult("{\"target\":\"Ammi\"}", deps())).asJsonObject.get("result").asString
+        val decls = JsonParser.parseString(LiveToolBridge.DECLARATIONS_JSON).asJsonArray.map { it.asJsonObject }
+        val d = decls.first { it.get("name").asString == "call_contact" }
+        assertEquals("target", d.getAsJsonObject("parameters").getAsJsonArray("required")[0].asString)
+        assertEquals(0, decls.first { it.get("name").asString == "confirm_pending_call" }
+            .getAsJsonObject("parameters").getAsJsonObject("properties").size())
+        val conf = com.maya.agent.calls.CallConfirmation()
+        val out = JsonParser.parseString(LiveToolBridge.callContactResult("{\"target\":\"Ammi\"}", deps(), conf)).asJsonObject.get("result").asString
         assertEquals(listOf("9876543210"), dialed)
         assertTrue(out.contains("cannot confirm"))
         dialed.clear()
-        val blocked = LiveToolBridge.callContactResult("{\"target\":\"9999999999\"}", deps(known = false))
-        assertTrue(dialed.isEmpty() && blocked.contains("new recipient"))
+        val blocked = LiveToolBridge.callContactResult("{\"target\":\"9999999999\"}", deps(known = false), conf)
+        assertTrue(dialed.isEmpty() && blocked.contains("New recipient") && conf.hasPending())
         assertTrue(LiveToolBridge.callContactResult("not json", deps()).contains("Nothing was dialled"))
         assertTrue(dialed.isEmpty())
     }

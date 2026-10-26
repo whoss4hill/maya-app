@@ -81,6 +81,10 @@ fun VoiceConversationScreen(onEnd: () -> Unit) {
             override fun onError(message: String) { errorLine = message }
             override suspend fun onToolCall(call: LiveProtocol.ServerEvent.FunctionCall): String =
                 LiveToolBridge.execute(context, call)
+            override fun onOwnerTranscript(text: String) { com.maya.agent.calls.VoiceCall.confirmation.onOwnerTranscript(text) }
+            override fun onTurnComplete() { com.maya.agent.calls.VoiceCall.confirmation.onTurnComplete(System.currentTimeMillis()) }
+            override fun onInterrupted() { com.maya.agent.calls.VoiceCall.confirmation.onInterrupted() }
+            override fun onSessionReset() { com.maya.agent.calls.VoiceCall.confirmation.reset() }
         }
     }
 
@@ -95,7 +99,7 @@ fun VoiceConversationScreen(onEnd: () -> Unit) {
         if (granted) manager.start(callback) else micPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
     DisposableEffect(Unit) {
-        onDispose { manager.end() }
+        onDispose { manager.end(); com.maya.agent.calls.VoiceCall.confirmation.reset() }
     }
 
     // Speaking indicator: any model audio flips the orb to SPEAKING briefly.

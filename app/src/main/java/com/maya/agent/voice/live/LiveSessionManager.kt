@@ -34,6 +34,12 @@ class LiveSessionManager(
         fun onError(message: String) {}
         /** Route to the existing ToolExecutor; return a JSON object string, e.g. {"result":"..."}. */
         suspend fun onToolCall(call: LiveProtocol.ServerEvent.FunctionCall): String
+        /** Owner speech transcript chunk (only when input transcription is on). */
+        fun onOwnerTranscript(text: String) {}
+        fun onTurnComplete() {}
+        fun onInterrupted() {}
+        /** Session dropped/reconnecting: any pending confirmation must be discarded. */
+        fun onSessionReset() {}
     }
 
     var state: State = State.IDLE
@@ -49,6 +55,10 @@ class LiveSessionManager(
     // this fallback only applies if the mint response omits it.
     private var model: String = "models/gemini-2.5-flash-native-audio-preview-12-2025"
     private var reconnectsLeft = MAX_RECONNECTS
+    /** Needed so the app can hear the owner's yes for new-recipient calls. If the server rejects the setup, retried once without (those calls then fail closed). */
+    @Volatile var inputTranscription: Boolean = true
+        private set
+    private var openedActive = false
     @Volatile private var lastAudioAtMs: Long = 0
 
     /** True while model audio arrived within the last 700 ms (drives the Speaking orb mood). */
@@ -87,11 +97,13 @@ class LiveSessionManager(
             systemInstruction = systemInstruction,
             voiceName = voiceName,
             toolsJson = toolsJson,
+            enableInputTranscription = inputTranscription,
             // googleSearch intentionally NOT enabled: model/tool compatibility and
             // free-tier billing behavior unverified; enable only after verification.
         )
         s.connect(url, setup, object : LiveSession.Listener {
             override fun onSetupComplete() {
+                openedActive = true
                 setState(State.ACTIVE, callback)
                 player = LiveAudioPlayer()
                 val m = LiveMicCapture { chunk -> session?.sendAudio(chunk) }
@@ -99,7 +111,9 @@ class LiveSessionManager(
                 m.start()
             }
             override fun onAudio(pcm: ByteArray) { lastAudioAtMs = System.currentTimeMillis(); player?.play(pcm) }
-            override fun onInterrupted() { player?.flush() }
+            override fun onInterrupted() { player?.flush(); callback.onInterrupted() }
+            override fun onTurnComplete() { callback.onTurnComplete() }
+            override fun onInputTranscript(text: String) { callback.onOwnerTranscript(text) }
             override fun onToolCall(calls: List<LiveProtocol.ServerEvent.FunctionCall>) {
                 scope.launch {
                     for (call in calls) {
@@ -112,11 +126,23 @@ class LiveSessionManager(
             override fun onGoAway() { reconnect(callback) }
             override fun onClosed(reason: String) {
                 if (state == State.ACTIVE) reconnect(callback)
+                else if (retryWithoutTranscription(callback)) Unit
             }
             override fun onFailure(t: Throwable) {
-                if (state == State.ACTIVE) reconnect(callback) else fail(callback, t.message ?: "connection failed")
+                if (state == State.ACTIVE) reconnect(callback)
+                else if (retryWithoutTranscription(callback)) Unit
+                else fail(callback, t.message ?: "connection failed")
             }
         })
+    }
+
+    /** First-open failure with transcription on: try once more without it so voice itself never breaks. */
+    private fun retryWithoutTranscription(callback: Callback): Boolean {
+        if (!inputTranscription || openedActive || state != State.CONNECTING) return false
+        inputTranscription = false
+        session?.close()
+        openSession(callback)
+        return true
     }
 
     /** Reconnect with the captured resumption handle while the token is valid (docs: ~2 h handle, same token OK within expireTime). */
@@ -127,6 +153,7 @@ class LiveSessionManager(
             return
         }
         reconnectsLeft--
+        callback.onSessionReset()
         val handle = session?.resumptionHandle
         val url = wsUrl ?: return fail(callback, "Voice connection dropped - tap to start again")
         session?.close()
@@ -139,13 +166,16 @@ class LiveSessionManager(
             voiceName = voiceName,
             resumptionHandle = handle,
             toolsJson = toolsJson,
+            enableInputTranscription = inputTranscription,
             // googleSearch intentionally NOT enabled: model/tool compatibility and
             // free-tier billing behavior unverified; enable only after verification.
         )
         s.connect(url, setup, object : LiveSession.Listener {
             override fun onSetupComplete() { setState(State.ACTIVE, callback) }
             override fun onAudio(pcm: ByteArray) { lastAudioAtMs = System.currentTimeMillis(); player?.play(pcm) }
-            override fun onInterrupted() { player?.flush() }
+            override fun onInterrupted() { player?.flush(); callback.onInterrupted() }
+            override fun onTurnComplete() { callback.onTurnComplete() }
+            override fun onInputTranscript(text: String) { callback.onOwnerTranscript(text) }
             override fun onToolCall(calls: List<LiveProtocol.ServerEvent.FunctionCall>) {
                 scope.launch {
                     for (call in calls) {

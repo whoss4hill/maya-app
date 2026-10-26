@@ -45,15 +45,25 @@ class VoiceCallTest {
         assertEquals("dialer_opened", VoiceCall.place("112", deps()).status)
     }
 
-    @Test fun `unknown number needs spoken confirmation then dials`() {
-        val d = deps(known = false)
-        val first = VoiceCall.place("9876543210", d)
-        assertEquals("needs_confirmation", first.status); assertTrue(dialed.isEmpty())
-        val second = VoiceCall.place("9876543210", d, confirmedNewRecipient = true)
-        assertEquals("intent_launched", second.status); assertEquals(1, dialed.size)
+    @Test fun `unknown number is held until the app hears the owner after readback`() {
+        val d = deps(known = false); val c = CallConfirmation()
+        assertEquals("needs_confirmation", VoiceCall.place("9876543210", d, c).status)
+        assertEquals("wait", VoiceCall.confirmPending(d, c, 0).status)             // model confirms before readback finished
+        c.onTurnComplete(1000)
+        assertEquals("no_answer", VoiceCall.confirmPending(d, c, 2000).status)     // model invents a yes: nothing heard
+        assertTrue(dialed.isEmpty())
+        c.onOwnerTranscript("haan kar do")
+        assertEquals("intent_launched", VoiceCall.confirmPending(d, c, 3000).status)
+        assertEquals(listOf("9876543210"), dialed)
+        assertEquals("no_pending", VoiceCall.confirmPending(d, c, 4000).status)    // one-shot, replay refused
+        assertEquals(1, dialed.size)
     }
-    @Test fun `contact name is known so no extra confirmation`() {
-        val r = VoiceCall.place("Ammi", deps(known = false, found = listOf(DialCommand.Match("Ammi", "9876543210"))))
-        assertEquals("intent_launched", r.status)
+    @Test fun `contact entry alone is not prior interaction`() {
+        val c = CallConfirmation()
+        val r = VoiceCall.place("Ammi", deps(known = false, found = listOf(DialCommand.Match("Ammi", "9876543210"))), c)
+        assertEquals("needs_confirmation", r.status); assertTrue(dialed.isEmpty())
+    }
+    @Test fun `known call history dials directly`() {
+        assertEquals("intent_launched", VoiceCall.place("9876543210", deps(known = true), CallConfirmation()).status)
     }
 }
