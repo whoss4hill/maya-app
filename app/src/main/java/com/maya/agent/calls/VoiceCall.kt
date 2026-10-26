@@ -3,9 +3,8 @@ package com.maya.agent.calls
 /**
  * Voice-triggered call ("Maya, Ammi ko call karo") from the Live model's call_contact tool.
  *
- * Consent model: the owner's spoken command opens the request. Master prompt gate 3: a number with no earlier call
- * in the call log is a NEW recipient and needs the owner's own spoken yes after a read-back, enforced by
- * CallConfirmation (app-side), never by a model-supplied flag. Pure decision logic so it is JVM tested. The result text goes back to the model
+ * Consent model: every voice call needs the app's own spoken read-back of the resolved number and the owner's own
+ * later spoken yes (CallConfirmation, app-side), never a model-supplied flag. Known-contact status does not waive it. Pure decision logic so it is JVM tested. The result text goes back to the model
  * so it can tell the owner the truth: "intent launched" is NOT "connected". Unknown/ambiguous contacts and
  * missing permissions never dial; the model is told to ask for the exact number or point to Permissions.
  * No permission prompt is raised from here (no new UI): missing permission is reported honestly.
@@ -58,24 +57,23 @@ object VoiceCall {
         if (DialCommand.isEmergency(number))
             return if (deps.dial(number)) Result("dialer_opened", "That is an emergency number. Only the dialer was opened; the owner must press Call. Nothing was auto-dialled.")
             else Result("blocked", "Could not open the dialer. Nothing was dialled.")
-        // The model emitting the tool is not enough: the app must have heard the owner ask for a call out loud.
+        // Precondition only (not authority): the app must have heard the owner mention a call. The yes below is the authority.
         if (!conf.ownerAskedForCall(now())) {
             return if (deps.openDialer(number)) Result("dialer_opened", "The app did not hear the owner ask for a call, so it did not place one. It opened the dialer with the number; the owner must press Call. Tell them so.")
             else Result("blocked", "The app did not hear the owner ask for a call. Nothing was dialled.")
         }
-        if (!deps.isKnownRecipient(number)) {
-            conf.begin(number, name)
-            val spoken = number.filter { it.isDigit() || it == '+' }.map { if (it == '+') "plus" else it.toString() }.joinToString(" ")
-            val lead = if (name.isBlank()) "Naya number" else "$name, naya number"
-            val ok = deps.speakReadback("$lead. $spoken. Bolo, call lagaun?") { conf.onReadbackSpoken(now()) }
-            if (!ok) {
-                conf.reset()
-                return if (deps.openDialer(number)) Result("dialer_opened", "The app could not read the new number back aloud, so it did not place the call. It opened the dialer with the number; the owner must press Call.")
-                else Result("blocked", "The app could not read the number back aloud. Nothing was dialled.")
-            }
-            return Result("needs_confirmation", "New recipient (no earlier call in the call log; a contact entry alone does not count). Nothing was dialled. The APP is now reading the number aloud itself: say nothing about the number and do not read it yourself. Wait silently for the owner's own answer, then call confirm_pending_call (no arguments). The app checks their actual words; you cannot confirm for them. If they name a different person or number, start over with call_contact.")
+        // ALL voice calls: the app reads the exact resolved number back itself and only the owner's own later yes
+        // places the call. Known-contact status never skips this (temporary safe behaviour: the app cannot yet
+        // independently bind the owner's spoken target to the tool's target).
+        conf.begin(number, name)
+        val spoken = number.filter { it.isDigit() || it == '+' }.map { if (it == '+') "plus" else it.toString() }.joinToString(" ")
+        val lead = if (name.isBlank()) "Number" else name
+        val ok = deps.speakReadback("$lead. $spoken. Bolo, call lagaun?") { conf.onReadbackSpoken(now()) }
+        if (!ok) {
+            conf.reset()
+            return if (deps.openDialer(number)) Result("dialer_opened", "The app could not read the number back aloud, so it did not place the call. It opened the dialer with the number; the owner must press Call.")
+            else Result("blocked", "The app could not read the number back aloud. Nothing was dialled.")
         }
-        return if (deps.dial(number)) Result("intent_launched", "Call intent launched to the number; Android cannot confirm the call connected. Do not say the person picked up.")
-        else Result("blocked", "Android refused to start the call (no dialer or background limit). Nothing was dialled.")
+        return Result("needs_confirmation", "Nothing was dialled yet. The APP is now reading the target number aloud itself: say nothing about the number and do not read it yourself. Wait silently for the owner's own answer, then call confirm_pending_call (no arguments). The app checks their actual words; you cannot confirm for them. If they name a different person or number, start over with call_contact.")
     }
 }

@@ -90,25 +90,9 @@ object LiveToolBridge {
             hasContactsPermission = { granted(android.Manifest.permission.READ_CONTACTS) },
             lookup = { DialCommand.lookup(context, it) },
             dial = { DialCommand.call(context, it) },
-            isKnownRecipient = { isKnown(context, it) },
             speakReadback = { text, done -> ReadbackSpeaker.speak(context.applicationContext, text, done) { VoiceCall.confirmation.reset() } },
             openDialer = { n -> try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.fromParts("tel", n, null)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (_: Exception) { false } },
         )
-    }
-
-    /** Known = the call log shows an earlier call with this number. A saved contact alone is NOT proof; a missing permission or a read failure means NOT known. */
-    private fun isKnown(context: Context, number: String): Boolean {
-        val key = DialCommand.normalize(number)
-        if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALL_LOG) !=
-            android.content.pm.PackageManager.PERMISSION_GRANTED) return false
-        return try {
-            context.contentResolver.query(android.provider.CallLog.Calls.CONTENT_URI, arrayOf(android.provider.CallLog.Calls.NUMBER),
-                null, null, "date DESC")?.use {
-                var n = 0
-                while (it.moveToNext() && n++ < 1000) if (DialCommand.normalize(it.getString(0) ?: "") == key) return@use true
-                false
-            } ?: false
-        } catch (_: Exception) { false }
     }
 
     /** Pure mapping; null = unknown/unsupported call. */

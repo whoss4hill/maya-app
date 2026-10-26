@@ -19,14 +19,18 @@ class VoiceCallTest {
     /** conf where the owner just asked for a call out loud */
     private fun asked() = CallConfirmation().also { it.onOwnerTranscript("Maya call karo", 0) }
 
-    @Test fun `number is dialled and not claimed connected`() {
+    @Test fun `no voice call dials directly, not even a number or single contact match`() {
         val r = VoiceCall.place("98765 43210", deps(), asked(), { 1000 })
-        assertEquals("intent_launched", r.status); assertEquals(listOf("9876543210"), dialed)
-        assertTrue(r.text.contains("not") || r.text.contains("cannot confirm"))
+        assertEquals("needs_confirmation", r.status); assertTrue(dialed.isEmpty())
+        val r2 = VoiceCall.place("Ammi", deps(found = listOf(DialCommand.Match("Ammi", "+91 98765 43210"))), asked(), { 1000 })
+        assertEquals("needs_confirmation", r2.status); assertTrue(dialed.isEmpty())
+        assertTrue(spoken[1].startsWith("Ammi.") && spoken[1].contains("9 1 9 8 7 6 5 4 3 2 1 0"))
     }
-    @Test fun `single contact match is dialled`() {
-        val r = VoiceCall.place("Ammi", deps(found = listOf(DialCommand.Match("Ammi", "+91 98765 43210"))), asked(), { 1000 })
-        assertEquals("intent_launched", r.status); assertEquals(1, dialed.size)
+    @Test fun `confirmed call is launched and never claimed connected`() {
+        val d = deps(); val c = asked(); VoiceCall.place("9876543210", d, c, { 1000 }); pendingDone!!.invoke()
+        c.onOwnerTranscript("haan", 2000)
+        val r = VoiceCall.confirmPending(d, c, 2500)
+        assertEquals("intent_launched", r.status); assertTrue(r.text.contains("cannot confirm"))
     }
     @Test fun `ambiguous contact never dials`() {
         val r = VoiceCall.place("Raj", deps(found = listOf(DialCommand.Match("Raj A", "1111111"), DialCommand.Match("Raj B", "2222222"))), asked(), { 1000 })
@@ -44,7 +48,9 @@ class VoiceCallTest {
         assertTrue(dialed.isEmpty())
     }
     @Test fun `os refusal is reported as blocked`() {
-        assertEquals("blocked", VoiceCall.place("9876543210", deps(dialOk = false), asked(), { 1000 }).status)
+        val d = deps(dialOk = false); val c = asked(); VoiceCall.place("9876543210", d, c, { 1000 }); pendingDone!!.invoke()
+        c.onOwnerTranscript("haan", 2000)
+        assertEquals("blocked", VoiceCall.confirmPending(d, c, 2500).status)
     }
     @Test fun `emergency number only opens dialer`() {
         assertTrue(DialCommand.isEmergency("112")); assertFalse(DialCommand.isEmergency("9876543210"))
@@ -69,14 +75,23 @@ class VoiceCallTest {
         val r = VoiceCall.place("9876543210", deps(known = false, tts = false), asked(), { 1000 })
         assertEquals("dialer_opened", r.status); assertTrue(dialed.isEmpty()); assertEquals(1, dialerOpened.size)
     }
-    @Test fun `known number still needs the owner to have asked out loud`() {
-        val noAsk = CallConfirmation()
-        assertEquals("dialer_opened", VoiceCall.place("9876543210", deps(known = true), noAsk, { 1000 }).status)
+    @Test fun `no spoken call request heard means dialer only, never a call`() {
+        assertEquals("dialer_opened", VoiceCall.place("9876543210", deps(), CallConfirmation(), { 1000 }).status)
         assertTrue(dialed.isEmpty())
-        assertEquals("intent_launched", VoiceCall.place("9876543210", deps(known = true), asked(), { 1000 }).status)
     }
-    @Test fun `contact entry alone is not prior interaction`() {
-        val r = VoiceCall.place("Ammi", deps(known = false, found = listOf(DialCommand.Match("Ammi", "9876543210"))), asked(), { 1000 })
-        assertEquals("needs_confirmation", r.status); assertTrue(dialed.isEmpty())
+    @Test fun `a fresh call request replaces an older pending and its yes`() {
+        val d = deps(); val c = asked()
+        VoiceCall.place("1111111111", d, c, { 1000 }); pendingDone!!.invoke()
+        c.onOwnerTranscript("haan", 2000)
+        VoiceCall.place("2222222222", d, c, { 3000 })        // different target: old yes is gone
+        assertEquals("wait", VoiceCall.confirmPending(d, c, 3100).status)
+        assertTrue(dialed.isEmpty())
+    }
+    @Test fun `ambiguous or silent owner never reaches ACTION_CALL`() {
+        val d = deps(); val c = asked(); VoiceCall.place("9876543210", d, c, { 1000 }); pendingDone!!.invoke()
+        assertEquals("no_answer", VoiceCall.confirmPending(d, c, 2500).status)
+        c.onOwnerTranscript("hmm", 2600)
+        assertEquals("unclear_answer", VoiceCall.confirmPending(d, c, 2700).status)
+        assertTrue(dialed.isEmpty())
     }
 }

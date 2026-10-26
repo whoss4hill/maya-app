@@ -93,11 +93,7 @@ class LiveToolBridgeTest {
             .getAsJsonObject("parameters").getAsJsonObject("properties").size())
         val conf = com.maya.agent.calls.CallConfirmation().also { it.onOwnerTranscript("Ammi ko call karo", System.currentTimeMillis()) }
         val out = JsonParser.parseString(LiveToolBridge.callContactResult("{\"target\":\"Ammi\"}", deps(), conf)).asJsonObject.get("result").asString
-        assertEquals(listOf("9876543210"), dialed)
-        assertTrue(out.contains("cannot confirm"))
-        dialed.clear()
-        val blocked = LiveToolBridge.callContactResult("{\"target\":\"9999999999\"}", deps(known = false), conf)
-        assertTrue(dialed.isEmpty() && blocked.contains("New recipient") && conf.hasPending())
+        assertTrue(dialed.isEmpty() && out.contains("Nothing was dialled yet") && conf.hasPending()) // tool alone never dials
         assertTrue(LiveToolBridge.callContactResult("not json", deps()).contains("Nothing was dialled"))
         assertTrue(dialed.isEmpty())
     }
