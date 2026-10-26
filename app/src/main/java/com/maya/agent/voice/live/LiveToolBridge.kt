@@ -39,7 +39,9 @@ object LiveToolBridge {
       {"name":"call_contact","description":"Place a phone call ONLY when the owner has just clearly asked to call someone. target is a contact name or a phone number exactly as the owner said it. If the result says ambiguous, unclear or not found, ask the owner; never guess a number. A launched call is not a connected call.",
        "parameters":{"type":"OBJECT","properties":{"target":{"type":"STRING"}},"required":["target"]}},
       {"name":"confirm_pending_call","description":"Only after call_contact said needs_confirmation, you read the number back, and the owner answered out loud. Takes no arguments: the app itself checks what the owner actually said. Never call it before the owner answered.",
-       "parameters":{"type":"OBJECT","properties":{}}}
+       "parameters":{"type":"OBJECT","properties":{}}},
+      {"name":"create_note","description":"Save a NEW text note ONLY when the owner just asked for one. body is the note in the owner's own words; never invent or add content. Creates a new file only; it never edits or reads existing files. Tell the owner where it was saved, exactly as the result says.",
+       "parameters":{"type":"OBJECT","properties":{"body":{"type":"STRING"}},"required":["body"]}}
     ]"""
 
     private fun timeAndWeather(context: Context): String {
@@ -127,6 +129,11 @@ object LiveToolBridge {
                 timeAndWeather(context)
             }
             return JsonObject().apply { addProperty("result", result) }.toString()
+        }
+        if (call.name == "create_note") {
+            return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                NoteTool.run(context, call.argsJson, VoiceCall.confirmation.recentOwnerSpeech(System.currentTimeMillis()))
+            }
         }
         if (call.name == "call_contact") {
             return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { callContactResult(call.argsJson, callDeps(context)) }
