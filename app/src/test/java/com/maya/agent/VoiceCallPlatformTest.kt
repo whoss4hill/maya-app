@@ -19,7 +19,6 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowTextToSpeech
-import android.os.Looper
 
 /**
  * No-dial platform harness: real Context, real LiveToolBridge/VoiceCall/DialCommand/ReadbackSpeaker code, Robolectric's
@@ -33,7 +32,7 @@ class VoiceCallPlatformTest {
     private val ctx get() = ApplicationProvider.getApplicationContext<android.content.Context>()
     private val args = "{\"target\":\"9876543210\"}"
 
-    @Before fun clean() { ReadbackSpeaker.resetForTest(); VoiceCall.confirmation.reset(); VoiceCall.confirmation.forgetSpeech(); ShadowTextToSpeech.clearLastSpokenText() }
+    @Before fun clean() { ReadbackSpeaker.resetForTest(); VoiceCall.confirmation.reset(); VoiceCall.confirmation.forgetSpeech(); ShadowTextToSpeech.reset() }
 
     private fun listenerAndId(): Pair<android.speech.tts.UtteranceProgressListener, String> {
         val f = ReadbackSpeaker::class.java.getDeclaredField("listener").apply { isAccessible = true }
@@ -43,6 +42,10 @@ class VoiceCallPlatformTest {
         return (f.get(ReadbackSpeaker) as android.speech.tts.UtteranceProgressListener) to ids.first()
     }
 
+    private fun shadowTts(): ShadowTextToSpeech = Shadows.shadowOf(ShadowTextToSpeech.getLastTextToSpeechInstance())
+    /** Robolectric does not fire the engine init callback by itself: simulate a healthy engine. */
+    private fun initTts() { shadowTts().onInitListener.onInit(TextToSpeech.SUCCESS) }
+
     private fun nextCallIntent(): Intent? = Shadows.shadowOf(app).nextStartedActivity
 
     @Test fun `no call intent until app readback finished and owner says the phrase, one-shot`() {
@@ -50,14 +53,14 @@ class VoiceCallPlatformTest {
         val now = System.currentTimeMillis()
         VoiceCall.confirmation.onOwnerTranscript("Maya call karo", now)
         val out = LiveToolBridge.callContactResult(args, LiveToolBridge.callDeps(ctx))
-        Shadows.shadowOf(Looper.getMainLooper()).idle()
         assertTrue(out, out.contains("Nothing was dialled yet"))
         assertNull(nextCallIntent())                                                   // tool alone: no call
-        val spoken = ShadowTextToSpeech.getLastSpokenText()
+        initTts()
+        val spoken = shadowTts().lastSpokenText
         assertTrue(spoken, spoken.contains("9 8 7 6 5 4 3 2 1 0"))                     // app speaks exact digits itself
         assertTrue(VoiceCall.confirmPending(LiveToolBridge.callDeps(ctx), now = now + 100).text.contains("not finished"))
         assertNull(nextCallIntent())
-        val (l, id) = listenerAndId(); l.onDone(id)                                    // TTS finished
+        val (l, id) = listenerAndId(); l.onDone(id)                                    // TTS finished (app listener)
         val done = System.currentTimeMillis()
         VoiceCall.confirmation.onOwnerTranscript("haan", done + 2000)                   // bare haan
         assertTrue(VoiceCall.confirmPending(LiveToolBridge.callDeps(ctx), now = done + 2100).text.contains("not a clear yes"))
@@ -74,9 +77,8 @@ class VoiceCallPlatformTest {
     @Test fun `without CALL_PHONE nothing is spoken or launched`() {
         VoiceCall.confirmation.onOwnerTranscript("Maya call karo", System.currentTimeMillis())
         val out = LiveToolBridge.callContactResult(args, LiveToolBridge.callDeps(ctx))
-        Shadows.shadowOf(Looper.getMainLooper()).idle()
         assertTrue(out, out.contains("permission is not granted"))
-        assertNull(nextCallIntent()); assertEquals("", ShadowTextToSpeech.getLastSpokenText() ?: "")
+        assertNull(nextCallIntent()); assertNull(ShadowTextToSpeech.getLastTextToSpeechInstance()) // nothing spoken
     }
 
     @Test fun `no spoken call request means dialer only, never ACTION_CALL`() {
@@ -90,7 +92,7 @@ class VoiceCallPlatformTest {
         Shadows.shadowOf(app).grantPermissions(Manifest.permission.CALL_PHONE, Manifest.permission.READ_CONTACTS)
         VoiceCall.confirmation.onOwnerTranscript("Maya call karo", System.currentTimeMillis())
         LiveToolBridge.callContactResult(args, LiveToolBridge.callDeps(ctx))
-        Shadows.shadowOf(Looper.getMainLooper()).idle()
+        initTts()
         VoiceCall.confirmation.reset()
         assertEquals("no_pending", VoiceCall.confirmPending(LiveToolBridge.callDeps(ctx)).status)
         assertNull(nextCallIntent())
