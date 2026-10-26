@@ -72,4 +72,6 @@ class WeatherToolTest {
         val out = WeatherTool.run(org.robolectric.RuntimeEnvironment.getApplication(), "{}", "")
         assertTrue(out, out.contains("request nahi suni"))
     }
+
+    @Test fun `spoken credit names the provider`() { assertTrue(WeatherTool.SPOKEN_CREDIT.contains("Open-Meteo")) }
 }

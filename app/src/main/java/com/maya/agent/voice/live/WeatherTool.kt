@@ -30,6 +30,9 @@ object WeatherTool {
     private const val FRESH_FIX_TIMEOUT_MS = 10_000L
 
     /** Strictly younger than 15 min; negative ages (clock/boot mismatch) are invalid. */
+    /** Spoken by the APP's own TTS after a successful weather result, independent of what the model says. */
+    const val SPOKEN_CREDIT = "Weather data by Open-Meteo dot com."
+
     fun isFresh(ageMs: Long): Boolean = ageMs in 0 until MAX_FIX_AGE_MS
 
     fun round2(v: Double): Double = Math.round(v * 100.0) / 100.0
@@ -133,7 +136,10 @@ object WeatherTool {
         return null
     }
 
-    suspend fun run(context: Context, argsJson: String, ownerSpeech: String): String {
+    suspend fun run(
+        context: Context, argsJson: String, ownerSpeech: String,
+        speakCredit: (String) -> Boolean = { ReadbackSpeaker.speak(context.applicationContext, it, {}, {}) },
+    ): String {
         when (gate(ownerSpeech)) {
             Gate.NO_REQUEST_HEARD -> return result("Maine abhi owner se mausam ki request nahi suni, isliye location ya mausam nahi li. Owner ke poochne par hi dobara try karo.")
             Gate.OTHER_PLACE -> return result("Abhi sirf phone ki current location ka mausam available hai; kisi aur jagah ka nahi. Owner ko yehi batao, current location ka mausam us jagah ka mat batana.")
@@ -156,6 +162,8 @@ object WeatherTool {
             }.getOrNull()
         } ?: return result("Mausam service se data nahi aa paaya (network issue). Owner ko honestly batao.")
         val checkedAt = java.text.SimpleDateFormat("d MMM yyyy, h:mm a z", java.util.Locale("en", "IN")).format(java.util.Date())
-        return result(summarize(body, checkedAt) ?: "Mausam ka data samajh nahi aaya. Owner ko honestly batao.")
+        val summary = summarize(body, checkedAt) ?: return result("Mausam ka data samajh nahi aaya. Owner ko honestly batao.")
+        speakCredit(SPOKEN_CREDIT)
+        return result(summary)
     }
 }
