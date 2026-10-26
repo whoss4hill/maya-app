@@ -82,7 +82,7 @@ object LiveToolBridge {
         return JsonObject().apply { addProperty("result", res.text) }.toString()
     }
 
-    private fun callDeps(context: Context): PhoneCommand.Deps {
+    internal fun callDeps(context: Context): PhoneCommand.Deps {
         fun granted(p: String) = androidx.core.content.ContextCompat.checkSelfPermission(context, p) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
         return PhoneCommand.Deps(

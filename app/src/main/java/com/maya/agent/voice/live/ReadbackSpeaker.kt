@@ -17,6 +17,10 @@ object ReadbackSpeaker {
     private val queue = ArrayDeque<Triple<String, () -> Unit, () -> Unit>>()
     private val active = HashMap<String, Pair<() -> Unit, () -> Unit>>()
     private var seq = 0
+    private var languageSet = false
+
+    /** Test hook: forget the engine so each test starts clean. */
+    @Synchronized internal fun resetForTest() { tts = null; ready = false; failedInit = false; languageSet = false; queue.clear(); active.clear() }
 
     @Synchronized fun speak(app: Context, text: String, onDone: () -> Unit, onFailed: () -> Unit): Boolean {
         if (failedInit) return false
@@ -24,8 +28,6 @@ object ReadbackSpeaker {
             tts = TextToSpeech(app) { status ->
                 synchronized(this) {
                     if (status == TextToSpeech.SUCCESS) {
-                        tts?.language = Locale("en", "IN")
-                        tts?.setOnUtteranceProgressListener(listener)
                         ready = true
                         while (queue.isNotEmpty()) { val (t, d, f) = queue.removeFirst(); start(t, d, f) }
                     } else {
@@ -35,6 +37,7 @@ object ReadbackSpeaker {
                 }
             }
         }
+        tts?.setOnUtteranceProgressListener(listener)
         if (ready) start(text, onDone, onFailed) else queue.addLast(Triple(text, onDone, onFailed))
         return true
     }
@@ -43,6 +46,7 @@ object ReadbackSpeaker {
         val id = "readback-" + (++seq)
         active.clear() // only the newest read-back may complete
         active[id] = onDone to onFailed
+        if (!languageSet) { tts?.setLanguage(Locale("en", "IN")); languageSet = true }
         val r = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), id)
         if (r != TextToSpeech.SUCCESS) { active.remove(id); onFailed() }
     }
