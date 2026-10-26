@@ -50,6 +50,7 @@ class AuthRepositoryResetTest {
         assertEquals("anon apikey header required", "test-anon-key", req.header("apikey"))
         assertTrue("JSON body with the typed email, was: $body", body.contains("\"email\":\"owner@example.com\""))
         assertTrue("no password or extra fields in reset body", !body.contains("password"))
+        assertTrue("PKCE challenge present", body.contains("code_challenge"))
     }
 
     @Test

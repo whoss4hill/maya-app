@@ -31,6 +31,7 @@ class AuthRepository(
     companion object {
         /** Must be in the Supabase project's Redirect URLs allow-list (owner-verified), else Supabase falls back to its Site URL. */
         const val RECOVERY_REDIRECT = "maya://auth"
+        const val PKCE_MAX_AGE_MS = 2L * 60 * 60 * 1000
     }
 
     private val appContext = context.applicationContext
@@ -72,7 +73,12 @@ class AuthRepository(
                 return@withContext Result.Failure("Supabase anon key missing - cannot send the reset email")
             }
             try {
-                val json = com.google.gson.JsonObject().apply { addProperty("email", email) }
+                val verifier = newVerifier()
+                val json = com.google.gson.JsonObject().apply {
+                    addProperty("email", email)
+                    addProperty("code_challenge", challengeOf(verifier))
+                    addProperty("code_challenge_method", "s256")
+                }
                 val body = json.toString()
                     .toRequestBody("application/json; charset=utf-8".toMediaType())
                 val request = Request.Builder()
@@ -81,8 +87,10 @@ class AuthRepository(
                     .post(body)
                     .build()
                 http.newCall(request).execute().use { resp ->
-                    if (resp.isSuccessful) Result.Success
-                    else Result.Failure("Could not send the reset email (${resp.code}). Try once more.")
+                    if (resp.isSuccessful) {
+                        prefs.edit().putString("pkce_verifier", verifier).putLong("pkce_ts", System.currentTimeMillis()).apply()
+                        Result.Success
+                    } else Result.Failure("Could not send the reset email (${resp.code}). Try once more.")
                 }
             } catch (e: Exception) {
                 Result.Failure("Network error: ${e.message ?: "unknown"}")
@@ -138,30 +146,72 @@ class AuthRepository(
 
     enum class Redirect { SIGNED_IN, RECOVERY, LINK_ERROR, IGNORED }
 
+    private fun newVerifier(): String {
+        val b = ByteArray(48); java.security.SecureRandom().nextBytes(b)
+        return android.util.Base64.encodeToString(b, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING)
+    }
+    private fun challengeOf(verifier: String): String =
+        android.util.Base64.encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII)),
+            android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING)
+
     /** In-memory only: a password-recovery token is never stored as a signed-in session. */
     private class RecoverySession(val token: String, val expiresAtMs: Long)
     @Volatile private var recovery: RecoverySession? = null
+    @Volatile private var pendingCode: String? = null
     @Volatile var linkError: String? = null; private set
     val recoveryPending: Boolean get() = recovery?.let { it.expiresAtMs > System.currentTimeMillis() } == true
-    fun cancelRecovery() { recovery = null }
+    val recoveryCodeWaiting: Boolean get() = pendingCode != null
+    fun cancelRecovery() { recovery = null; pendingCode = null }
     fun consumeLinkError(): String? = linkError.also { linkError = null }
 
-    /** Called from MainActivity when the maya://auth deep link comes back (Google sign-in or password recovery). */
+    private fun freshVerifier(): String? {
+        val v = prefs.getString("pkce_verifier", null) ?: return null
+        val ts = prefs.getLong("pkce_ts", 0L)
+        return if (System.currentTimeMillis() - ts in 0..PKCE_MAX_AGE_MS) v else null
+    }
+
+    /** Called from MainActivity for maya://auth. Recovery is only accepted as a PKCE code matching a reset this app requested. */
     fun handleAuthRedirect(uri: Uri): Redirect {
+        if (!RecoveryLink.isExactCallback(uri.scheme, uri.host, uri.port, uri.path, uri.userInfo)) return Redirect.IGNORED
         return when (val o = RecoveryLink.parse(uri.fragment, uri.query)) {
-            is RecoveryLink.Outcome.Recovery -> { recovery = RecoverySession(o.accessToken, o.expiresAtMs); linkError = null; Redirect.RECOVERY }
-            is RecoveryLink.Outcome.LinkError -> { recovery = null; linkError = o.message; Redirect.LINK_ERROR }
+            is RecoveryLink.Outcome.Code -> {
+                if (freshVerifier() == null) { Redirect.IGNORED }  // not a reset this app asked for
+                else { recovery = null; pendingCode = o.code; linkError = null; Redirect.RECOVERY }
+            }
+            is RecoveryLink.Outcome.LinkError -> { recovery = null; pendingCode = null; linkError = o.message; Redirect.LINK_ERROR }
             RecoveryLink.Outcome.Ignore -> Redirect.IGNORED
             is RecoveryLink.Outcome.SignIn -> {
-                val params = o.params
                 prefs.edit()
-                    .putString("access_token", params["access_token"])
-                    .putString("refresh_token", params["refresh_token"])
-                    .putLong("expires_at", refresher.expiryFrom(params["expires_at"]?.toLongOrNull(), params["expires_in"]?.toLongOrNull()))
+                    .putString("access_token", o.accessToken)
+                    .putString("refresh_token", o.refreshToken)
+                    .putLong("expires_at", refresher.expiryFrom(o.expiresAt, o.expiresIn))
                     .apply()
                 Redirect.SIGNED_IN
             }
         }
+    }
+
+    /** Redeems the waiting PKCE code (one-shot: verifier and code are consumed before the request) and returns the masked account. */
+    suspend fun beginRecovery(): kotlin.Result<String> = withContext(Dispatchers.IO) {
+        val code = pendingCode; val verifier = freshVerifier()
+        pendingCode = null
+        prefs.edit().remove("pkce_verifier").remove("pkce_ts").apply()
+        if (code == null || verifier == null) return@withContext kotlin.Result.failure(IllegalStateException("no pending reset"))
+        try {
+            val body = com.google.gson.JsonObject().apply { addProperty("auth_code", code); addProperty("code_verifier", verifier) }.toString()
+                .toRequestBody("application/json; charset=utf-8".toMediaType())
+            val req = Request.Builder().url("$supabaseUrl/auth/v1/token?grant_type=pkce").addHeader("apikey", anonKey).post(body).build()
+            val (token, expMs) = http.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext kotlin.Result.failure(IllegalStateException("rejected"))
+                val o = JsonParser.parseString(resp.body?.string() ?: "{}").asJsonObject
+                val t = o.get("access_token")?.takeIf { !it.isJsonNull }?.asString
+                val ein = o.get("expires_in")?.takeIf { !it.isJsonNull }?.asLong ?: 0L
+                if (t.isNullOrBlank() || ein <= 0 || ein > 7L * 24 * 3600) return@withContext kotlin.Result.failure(IllegalStateException("bad response"))
+                t to (System.currentTimeMillis() + ein * 1000)
+            }
+            recovery = RecoverySession(token, expMs)
+            verifyRecoverySession().onFailure { recovery = null }
+        } catch (e: Exception) { kotlin.Result.failure(e) }
     }
 
     /** Confirms the recovery token is a live session and returns whose account it is (masked), or a failure. */
@@ -215,5 +265,5 @@ class AuthRepository(
     /** Access token valid for the next minute, refreshed when needed (see TokenRefresher). */
     suspend fun validAccessToken(): String? = withContext(Dispatchers.IO) { refresher.validAccessToken() }
 
-    fun signOut() { recovery = null; prefs.edit().clear().apply() }
+    fun signOut() { recovery = null; pendingCode = null; prefs.edit().clear().apply() }
 }

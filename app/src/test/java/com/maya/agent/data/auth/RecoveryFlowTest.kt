@@ -22,21 +22,43 @@ import org.robolectric.RobolectricTestRunner
 class RecoveryFlowTest {
     private val now = 1_800_000_000_000L
 
-    @Test fun `recovery fragment is a recovery outcome not a sign-in`() {
-        val o = RecoveryLink.parse("access_token=TOK&refresh_token=R&type=recovery&expires_in=3600", null, now)
-        assertTrue(o is RecoveryLink.Outcome.Recovery)
-        assertEquals(now + 3_600_000, (o as RecoveryLink.Outcome.Recovery).expiresAtMs)
+    private val jwt = "aaaaaaaa.bbbbbbbb.cccc"
+
+    @Test fun `only a pkce code is a recovery entry`() {
+        assertEquals(RecoveryLink.Outcome.Code("abcdef123456"), RecoveryLink.parse(null, "code=abcdef123456", now))
     }
-    @Test fun `google style fragment is an ordinary sign-in`() {
-        assertTrue(RecoveryLink.parse("access_token=TOK&refresh_token=R&expires_in=3600&token_type=bearer", null, now) is RecoveryLink.Outcome.SignIn)
+    @Test fun `fragment tokens with any type are ignored, even type recovery`() {
+        for (t in listOf("recovery", "magiclink", "signup", "invite", "email_change"))
+            assertEquals(t, RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&type=$t&expires_in=3600", null, now))
     }
-    @Test fun `expired or errored link gives a friendly error without token text`() {
-        val e1 = RecoveryLink.parse("error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid", null, now) as RecoveryLink.Outcome.LinkError
-        assertTrue(e1.message.contains("expired"))
-        val e2 = RecoveryLink.parse("access_token=TOK&type=recovery&expires_at=${now / 1000 - 5}", null, now) as RecoveryLink.Outcome.LinkError
-        assertFalse(e2.message.contains("TOK"))
+    @Test fun `google style fragment is an ordinary sign-in only when well formed`() {
+        assertTrue(RecoveryLink.parse("access_token=$jwt&refresh_token=RRRRRR&expires_in=3600&token_type=bearer", null, now) is RecoveryLink.Outcome.SignIn)
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=notajwt&expires_in=3600", null, now))
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt", null, now))
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&expires_in=-5", null, now))
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&expires_in=99999999999", null, now))
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&expires_at=${now / 1000 - 5}", null, now))
+    }
+    @Test fun `duplicate or malformed params and code plus fragment are rejected`() {
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse(null, "code=abcdef123456&code=zzzzzzzzzz", now))
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&access_token=$jwt&expires_in=60", null, now))
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse(null, "code", now))
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse(null, "code=short", now))
+        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("access_token=$jwt&expires_in=60", "code=abcdef123456", now))
+    }
+    @Test fun `error links give a fixed message that never echoes server text`() {
+        val e = RecoveryLink.parse("error=access_denied&error_code=otp_expired&error_description=SECRET+TEXT", null, now) as RecoveryLink.Outcome.LinkError
+        assertTrue(e.message.contains("expired")); assertFalse(e.message.contains("SECRET"))
         assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse(null, null, now))
-        assertEquals(RecoveryLink.Outcome.Ignore, RecoveryLink.parse("foo=bar", null, now))
+    }
+    @Test fun `callback must be exactly maya auth`() {
+        assertTrue(RecoveryLink.isExactCallback("maya", "auth", -1, "", null))
+        assertTrue(RecoveryLink.isExactCallback("maya", "auth", -1, "/", null))
+        assertFalse(RecoveryLink.isExactCallback("maya", "auth", -1, "/x", null))
+        assertFalse(RecoveryLink.isExactCallback("maya", "auth", 80, "", null))
+        assertFalse(RecoveryLink.isExactCallback("maya", "auth", -1, "", "u"))
+        assertFalse(RecoveryLink.isExactCallback("maya", "evil", -1, "", null))
+        assertFalse(RecoveryLink.isExactCallback("https", "auth", -1, "", null))
     }
     @Test fun `mask email`() { assertEquals("o***@example.com", RecoveryLink.maskEmail("owner@example.com")) }
 
@@ -51,44 +73,70 @@ class RecoveryFlowTest {
     private fun repo(sink: MutableList<Pair<Request, String>>, code: Int, body: String = "{}") =
         AuthRepository(ApplicationProvider.getApplicationContext<Context>(), client(sink, code, body), "https://proj.supabase.co", "anon")
 
-    @Test fun `recovery link does not sign the user in and updates password only on 2xx`() = runTest {
+    private fun reqBody(sink: List<Pair<Request, String>>, i: Int) = sink[i].second
+
+    @Test fun `reset request carries a pkce challenge and a stored verifier is needed to accept a code`() = runTest {
         val sink = mutableListOf<Pair<Request, String>>()
         val r = repo(sink, 200, "{\"email\":\"owner@example.com\"}")
-        val res = r.handleAuthRedirect(Uri.parse("maya://auth#access_token=TOK&type=recovery&expires_in=3600"))
-        assertEquals(AuthRepository.Redirect.RECOVERY, res)
-        assertFalse("recovery must not create a signed-in session", r.isSignedIn)
-        assertTrue(r.recoveryPending)
-        assertEquals("o***@example.com", r.verifyRecoverySession().getOrNull())
-        assertEquals("Bearer TOK", sink[0].first.header("Authorization")); assertEquals("GET", sink[0].first.method)
-        assertTrue(r.setNewPassword("longenough1") is AuthRepository.Result.Success)
-        val (put, body) = sink[1]
-        assertEquals("PUT", put.method); assertTrue(put.url.encodedPath.endsWith("/auth/v1/user"))
-        assertTrue(body.contains("\"password\":\"longenough1\""))
-        assertFalse("token dropped after success", r.recoveryPending)
-        assertTrue(r.setNewPassword("longenough1") is AuthRepository.Result.Failure)
-        assertEquals("second attempt sends nothing", 2, sink.size)
+        // a code arriving with no reset requested by this app is ignored
+        assertEquals(AuthRepository.Redirect.IGNORED, r.handleAuthRedirect(Uri.parse("maya://auth?code=abcdef123456")))
+        assertFalse(r.recoveryCodeWaiting)
+        assertTrue(r.sendPasswordReset("owner@example.com") is AuthRepository.Result.Success)
+        val body = reqBody(sink, 0)
+        assertTrue(body.contains("\"code_challenge_method\":\"s256\"") && body.contains("\"code_challenge\":\""))
+        assertFalse("verifier itself must not be sent", Regex("code_verifier").containsMatchIn(body))
+        assertEquals(AuthRepository.Redirect.RECOVERY, r.handleAuthRedirect(Uri.parse("maya://auth?code=abcdef123456")))
+        assertFalse("a code is not a signed-in session", r.isSignedIn)
     }
-    @Test fun `failed update keeps honest error and weak or short password never sent`() = runTest {
+    @Test fun `foreign callbacks never sign in or start recovery`() {
+        val r = repo(mutableListOf(), 200)
+        for (u in listOf("maya://auth/x#access_token=aaaaaaaa.bbbbbbbb.cccc&type=recovery&expires_in=3600",
+            "maya://auth#access_token=aaaaaaaa.bbbbbbbb.cccc&type=recovery&expires_in=3600",
+            "maya://evil#access_token=aaaaaaaa.bbbbbbbb.cccc&expires_in=3600",
+            "maya://auth?code=abcdef123456&code=abcdef123456"))
+            assertEquals(u, AuthRepository.Redirect.IGNORED, r.handleAuthRedirect(Uri.parse(u)))
+        assertFalse(r.isSignedIn); assertFalse(r.recoveryPending)
+    }
+    @Test fun `code exchange then identity check then update only on 2xx, replay sends nothing`() = runTest {
+        val sink = mutableListOf<Pair<Request, String>>()
+        val r = AuthRepository(ApplicationProvider.getApplicationContext<Context>(),
+            OkHttpClient.Builder().addInterceptor(Interceptor { chain ->
+                val buf = okio.Buffer(); chain.request().body?.writeTo(buf); sink += chain.request() to buf.readUtf8()
+                val path = chain.request().url.encodedPath
+                val json = when {
+                    path.endsWith("/token") -> "{\"access_token\":\"aaaaaaaa.bbbbbbbb.cccc\",\"expires_in\":3600}"
+                    path.endsWith("/user") && chain.request().method == "GET" -> "{\"email\":\"owner@example.com\"}"
+                    else -> "{}"
+                }
+                Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("x")
+                    .body(json.toResponseBody("application/json".toMediaType())).build()
+            }).build(), "https://proj.supabase.co", "anon")
+        r.sendPasswordReset("owner@example.com")
+        r.handleAuthRedirect(Uri.parse("maya://auth?code=abcdef123456"))
+        assertEquals("o***@example.com", r.beginRecovery().getOrNull())
+        val ex = sink[1]
+        assertTrue(ex.first.url.toString().contains("grant_type=pkce"))
+        assertTrue(ex.second.contains("\"auth_code\":\"abcdef123456\"") && ex.second.contains("\"code_verifier\":\""))
+        assertEquals("Bearer aaaaaaaa.bbbbbbbb.cccc", sink[2].first.header("Authorization"))
+        assertFalse("recovery must not create a signed-in session", r.isSignedIn)
+        assertTrue(r.setNewPassword("longenough1") is AuthRepository.Result.Success)
+        val (put, body) = sink[3]
+        assertEquals("PUT", put.method); assertTrue(body.contains("\"password\":\"longenough1\""))
+        assertFalse(r.recoveryPending)
+        assertTrue(r.setNewPassword("longenough1") is AuthRepository.Result.Failure)
+        assertEquals(4, sink.size)
+        // verifier was consumed: the same code cannot be replayed
+        assertEquals(AuthRepository.Redirect.IGNORED, r.handleAuthRedirect(Uri.parse("maya://auth?code=abcdef123456")))
+    }
+    @Test fun `short password never sent, 422 keeps recovery for retry, cancel and sign out clear it`() = runTest {
         val sink = mutableListOf<Pair<Request, String>>()
         val r = repo(sink, 422)
-        r.handleAuthRedirect(Uri.parse("maya://auth#access_token=TOK&type=recovery&expires_in=3600"))
-        assertTrue(r.setNewPassword("short") is AuthRepository.Result.Failure); assertEquals(0, sink.size)
-        val f = r.setNewPassword("longenough1") as AuthRepository.Result.Failure
-        assertTrue(f.message.contains("not accepted"))
-        assertTrue("still pending after a 422 so he can retry", r.recoveryPending)
-    }
-    @Test fun `cancel and sign out clear the recovery token`() = runTest {
-        val sink = mutableListOf<Pair<Request, String>>()
-        val r = repo(sink, 200)
-        r.handleAuthRedirect(Uri.parse("maya://auth#access_token=TOK&type=recovery&expires_in=3600"))
-        r.cancelRecovery(); assertFalse(r.recoveryPending)
         assertTrue(r.setNewPassword("longenough1") is AuthRepository.Result.Failure); assertEquals(0, sink.size)
-        r.handleAuthRedirect(Uri.parse("maya://auth#access_token=TOK&type=recovery&expires_in=3600"))
-        r.signOut(); assertFalse(r.recoveryPending)
+        r.cancelRecovery(); r.signOut(); assertFalse(r.recoveryPending); assertFalse(r.recoveryCodeWaiting)
     }
     @Test fun `ordinary google redirect still signs in`() {
         val r = repo(mutableListOf(), 200)
-        assertEquals(AuthRepository.Redirect.SIGNED_IN, r.handleAuthRedirect(Uri.parse("maya://auth#access_token=T2&refresh_token=R2&expires_in=3600")))
+        assertEquals(AuthRepository.Redirect.SIGNED_IN, r.handleAuthRedirect(Uri.parse("maya://auth#access_token=aaaaaaaa.bbbbbbbb.cccc&refresh_token=RRRRRR&expires_in=3600")))
         assertTrue(r.isSignedIn)
     }
 }

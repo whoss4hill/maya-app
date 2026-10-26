@@ -49,7 +49,7 @@ fun ResetPasswordScreen(onDone: () -> Unit, onCancel: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        auth.verifyRecoverySession().fold(
+        auth.beginRecovery().fold(
             onSuccess = { account = it },
             onFailure = { failed = "That reset link is no longer valid. Ask for a new one." },
         )
