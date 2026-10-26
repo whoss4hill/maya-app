@@ -77,8 +77,14 @@ object DialCommand {
         return if (d.length > 10) d.takeLast(10) else d
     }
 
+    private val emergency = setOf("112", "100", "101", "102", "108", "1091", "1098", "911", "999", "000")
+
+    /** Emergency numbers are never auto-dialled (CALL_PRIVILEGED is not available); they only open the dialer. */
+    fun isEmergency(number: String): Boolean = number.filter { it.isDigit() } in emergency
+
     fun callIntent(number: String): Intent =
-        Intent(Intent.ACTION_CALL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        Intent(if (isEmergency(number)) Intent.ACTION_DIAL else Intent.ACTION_CALL, Uri.fromParts("tel", number, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     /** Places the call. Caller must hold CALL_PHONE. Returns false on refusal or no handler. */
     fun call(context: Context, number: String): Boolean = try {

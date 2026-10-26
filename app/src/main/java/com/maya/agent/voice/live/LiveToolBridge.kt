@@ -5,6 +5,9 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.maya.agent.agent.MayaIntent
 import com.maya.agent.agent.ToolExecutor
+import com.maya.agent.calls.DialCommand
+import com.maya.agent.calls.PhoneCommand
+import com.maya.agent.calls.VoiceCall
 
 /**
  * Maps Gemini Live function calls to the EXISTING MayaIntent/ToolExecutor
@@ -32,7 +35,9 @@ object LiveToolBridge {
       {"name":"go_back","description":"Navigate back on the phone (needs the accessibility service)",
        "parameters":{"type":"OBJECT","properties":{}}},
       {"name":"go_home","description":"Go to the phone home screen (needs the accessibility service)",
-       "parameters":{"type":"OBJECT","properties":{}}}
+       "parameters":{"type":"OBJECT","properties":{}}},
+      {"name":"call_contact","description":"Place a phone call ONLY when the owner has just clearly asked to call someone. target is a contact name or a phone number exactly as the owner said it. If the result says ambiguous, unclear or not found, ask the owner; never guess a number. A launched call is not a connected call.",
+       "parameters":{"type":"OBJECT","properties":{"target":{"type":"STRING"}},"required":["target"]}}
     ]"""
 
     private fun timeAndWeather(context: Context): String {
@@ -64,6 +69,17 @@ object LiveToolBridge {
             weather = "Could not fetch weather data"
         }
         return "Current date & time: " + ist + ". Weather Data: " + weather
+    }
+
+    private fun callDeps(context: Context): PhoneCommand.Deps {
+        fun granted(p: String) = androidx.core.content.ContextCompat.checkSelfPermission(context, p) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        return PhoneCommand.Deps(
+            hasCallPermission = { granted(android.Manifest.permission.CALL_PHONE) },
+            hasContactsPermission = { granted(android.Manifest.permission.READ_CONTACTS) },
+            lookup = { DialCommand.lookup(context, it) },
+            dial = { DialCommand.call(context, it) },
+        )
     }
 
     /** Pure mapping; null = unknown/unsupported call. */
@@ -98,6 +114,12 @@ object LiveToolBridge {
                 timeAndWeather(context)
             }
             return JsonObject().apply { addProperty("result", result) }.toString()
+        }
+        if (call.name == "call_contact") {
+            val target = try { JsonParser.parseString(call.argsJson).asJsonObject.get("target")?.asString } catch (e: Exception) { null }
+            val res = if (target.isNullOrBlank()) VoiceCall.Result("unclear", "No target given. Nothing was dialled.")
+                else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { VoiceCall.place(target, callDeps(context)) }
+            return JsonObject().apply { addProperty("result", res.text) }.toString()
         }
         val intent = toIntent(call)
             ?: return "{\"result\":\"Ye action voice me available nahi hai\"}"
